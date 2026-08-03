@@ -44,11 +44,16 @@ The offline parser is rule-based and is designed for demo-grade CSV/plain text, 
 
 ## How Codex built this
 
-OpenAI Codex implemented the app architecture, deterministic agents, user interface, sample evidence, audit export, automated tests, and iterative review fixes. Product direction, requirements, and judging narrative were supplied by the project owner.
+OpenAI Codex (5.6 Terra, High effort) implemented the app architecture, deterministic agents, user interface, sample evidence, audit export, automated tests, and iterative review fixes. Product direction, requirements, and judging narrative were supplied by the project owner.
+
+Judge evidence pack:
+- Process write-up: [`docs/codex-process.md`](docs/codex-process.md)
+- Session screenshots: [`docs/codex-evidence/`](docs/codex-evidence/) (`00-spec-prompt.png` … `03-polish-review.png`)
 
 ```bash
 npm run build
 npm run eval
+npm test
 ```
 
 ## Deploy to Vercel
@@ -60,11 +65,16 @@ npm run eval
 
 ## Codex process
 
-The implementation was built primarily with OpenAI Codex: code architecture, the deterministic reconciliation engine, pages/components, samples, audit export, eval harness, and iterative build review. Product planning and hackathon positioning were provided outside the Codex implementation process.
+Built primarily with OpenAI Codex. Planning/positioning outside; application code and review loops inside Codex.
+
+Full write-up: [`docs/codex-process.md`](docs/codex-process.md) · Screenshots: [`docs/codex-evidence/`](docs/codex-evidence/)
 
 ## Project map
 
 - `lib/reconciliation.ts` — deterministic agent-compatible reconciliation and critic loop
 - `components/workspace.tsx` — full demo workflow, activity timeline, audit ZIP
 - `app/evals` — visible golden scenario dashboard
+- `app/process` — architecture + Codex evidence links for judges
 - `public/samples` — real kirana/MSME sample evidence
+- `docs/codex-process.md` — Codex build evidence for judges
+- `docs/codex-evidence/` — Codex session screenshots
