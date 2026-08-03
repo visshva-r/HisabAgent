@@ -1,0 +1,2 @@
+import { test, expect } from '@playwright/test';
+test('reconciliation and eval smoke path', async ({ page }) => { await page.goto('/workspace'); await page.getByRole('button',{name:'Run HisabAgent'}).click(); await expect(page.getByText('Reconciled transactions')).toBeVisible(); await expect(page.getByText('Human decision queue')).toBeVisible(); await expect(page.getByText('Planner')).toBeVisible(); await page.goto('/evals'); await page.getByRole('button',{name:'Run all 8 golden evals'}).click(); await expect(page.getByText('8 / 8 passing')).toBeVisible(); });

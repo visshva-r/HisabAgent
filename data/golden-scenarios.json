@@ -1,0 +1,10 @@
+[
+  {"id":"clean-upi","name":"Clean UPI CSV","target":"reference match accuracy"},
+  {"id":"messy-csv","name":"Messy CSV","target":"header and duplicate robustness"},
+  {"id":"whatsapp-only","name":"WhatsApp-only notes","target":"informal language extraction"},
+  {"id":"mixed","name":"Mixed day pack","target":"cross-source reconciliation"},
+  {"id":"duplicates","name":"Duplicate payments","target":"duplicate detection"},
+  {"id":"partial","name":"Partial amount matches","target":"human-review routing"},
+  {"id":"missing-ref","name":"Missing references","target":"safe unmatched handling"},
+  {"id":"hinglish","name":"Hindi + English mixed","target":"mixed language resilience"}
+]
