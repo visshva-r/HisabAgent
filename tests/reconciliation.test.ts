@@ -32,3 +32,22 @@ describe('HisabAgent matching and critic bands', () => {
     const run=reconcile(csv,''); expect(run.trust.score).toBeGreaterThanOrEqual(35); expect(run.trust.score).toBeLessThanOrEqual(96); expect(run.trust.reasons.length).toBeGreaterThan(0);
   });
 });
+
+describe('golden eval assertions mirrored from Evals Lab', () => {
+  it('checks all eight fixtures with concrete outcomes', () => {
+    const clean=reconcile('Date,Amount,Type,Name,Ref\n2026-08-01,2500,Credit,Anita,REF111','Anita paid ₹2,500 UPI ref REF111');
+    expect(clean.transactions.some(t=>t.status==='matched'&&t.confidence>=90)).toBe(true);
+    const messy=reconcile('txn_date,amt,dr/cr,remark,utr\n01/08/2026,"2,500",CR,ANITA,REF1\n01/08/2026,"2,500",CR,ANITA,REF1','');
+    expect(messy.transactions.some(t=>t.flags.length)||messy.exceptions.some(e=>e.title.toLowerCase().includes('duplicate'))).toBe(true);
+    expect(reconcile('','Ramesh se ₹450 received').transactions.some(t=>t.source==='note')).toBe(true);
+    const mixed=reconcile('Date,Amount,Type,Name,Ref\n2026-08-01,1200,Credit,Mohan,REF777','Mohan paid ₹1,200 UPI ref REF777');
+    expect(mixed.transactions.some(t=>t.status==='matched'&&/note|upi|cross/i.test(t.matchReason))).toBe(true);
+    const duplicate=reconcile('Date,Amount,Type,Name,Ref\n2026-08-01,900,Credit,Ravi,REF9\n2026-08-01,900,Credit,Ravi,REF9','');
+    expect(duplicate.exceptions.some(e=>e.title.toLowerCase().includes('duplicate'))).toBe(true);
+    const partial=reconcile('Date,Amount,Type,Name,Ref\n2026-08-01,1000,Credit,Ravi,REF2','Ravi payment ₹1,050 received');
+    expect(partial.transactions.some(t=>t.status==='partial')||partial.exceptions.some(e=>e.title.startsWith('Partial'))).toBe(true);
+    const missing=reconcile('Date,Amount,Type,Name,Ref\n2026-08-01,700,Credit,Walk In,','Cash collection ₹700');
+    expect(missing.exceptions.some(e=>/Unmatched|Partial/.test(e.title))).toBe(true);
+    expect(reconcile('','रमेश से ₹450 मिले, payment received').transactions.some(t=>t.source==='note'&&t.amount>0)).toBe(true);
+  });
+});

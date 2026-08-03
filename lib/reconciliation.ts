@@ -29,7 +29,7 @@ export function reconcile(csv:string, notes:string, shopName='Sharma General Sto
   if(cross) { t.status='matched'; t.confidence=t.reference===cross.reference && !t.reference.startsWith('NOTE') ? 96:82; t.matchReason=`Cross-checked against ${cross.source === 'upi' ? 'UPI export':'payment note'}: ${cross.party}`; }
   else { const close=transactions.find((x,j)=>j!==i && x.direction===t.direction && x.source!==t.source && Math.abs(x.amount-t.amount)<=Math.max(5,t.amount*.1)); if(close){t.status='partial';t.confidence=62;t.matchReason=`Near amount signal with ${close.party}; human confirmation needed`;}
   }
-  if(peers.length>1 && !cross) { t.flags.push('Possible duplicate'); t.status='review'; t.confidence=Math.min(t.confidence,45); }
+  if(peers.length>0 && !cross) { t.flags.push('Possible duplicate'); t.status='review'; t.confidence=Math.min(t.confidence,45); }
  });
  const dupes=transactions.filter(t=>t.flags.includes('Possible duplicate'));
  dupes.forEach((t,i)=>{if(i%2===0) exceptions.push({id:`dup-${i}`,title:`Possible duplicate ₹${t.amount.toLocaleString('en-IN')}`,detail:`${t.party} appears more than once with the same amount/reference signals.`,severity:'high',suggestedAction:'Verify the UPI reference before keeping both entries.',transactionIds:[t.id]});});
