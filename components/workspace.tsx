@@ -31,17 +31,20 @@ export function Workspace() {
   const [run, setRun] = useState<RunResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [liveExplainer, setLiveExplainer] = useState(false);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const kpi = useMemo(() => {
     const t = run?.transactions ?? [];
     return { in: t.filter(x => x.direction === 'credit').reduce((s, x) => s + x.amount, 0), out: t.filter(x => x.direction === 'debit').reduce((s, x) => s + x.amount, 0), matched: t.filter(x => x.status === 'matched').length, duplicates: t.filter(x => x.flags.length).length, risk: t.filter(x => x.status !== 'matched').reduce((s, x) => s + x.amount, 0) };
   }, [run]);
-  const loadDemo = () => { setCsv(sampleCsv); setNotes(sampleNotes); setShop('Sharma General Store'); setError(''); };
+  const loadDemo = () => { setCsv(sampleCsv); setNotes(sampleNotes); setShop('Sharma General Store'); setError(''); setRun(null); setLiveExplainer(false); };
   async function execute() {
     if (!csv.trim() && !notes.trim()) { setError('Add a UPI CSV or payment notes before running HisabAgent.'); return; }
     setError(''); setBusy(true); setRun(null); const events: TimelineEvent[] = [];
     for (const [agent, detail] of stages) { events.push({ agent, title: `${agent} Agent`, detail, status: 'running', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }); setTimeline([...events]); await new Promise(resolve => setTimeout(resolve, 380)); events[events.length - 1].status = 'done'; setTimeline([...events]); }
-    const result = reconcile(csv, notes, shop, lang); result.timeline = events; setRun(result); localStorage.setItem('hisabagent:last-run', JSON.stringify(result)); setBusy(false);
+    const result = reconcile(csv, notes, shop, lang); result.timeline = events;
+    try { const response = await fetch('/api/explain', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shopName: shop, language: lang, summary: result.summary, exceptions: result.exceptions, transactions: result.transactions }) }); const live = await response.json(); if (response.ok && live.ok) { result.summary = { en: live.en, hi: live.hi }; setLiveExplainer(true); } else setLiveExplainer(false); } catch { setLiveExplainer(false); }
+    setRun(result); localStorage.setItem('hisabagent:last-run', JSON.stringify(result)); setBusy(false);
   }
   function importFile(event: React.ChangeEvent<HTMLInputElement>, target: 'csv' | 'note') { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => target === 'csv' ? setCsv(String(reader.result)) : setNotes(String(reader.result)); reader.readAsText(file); }
   async function download() { if (!run) return; const zip = new JSZip(); const reconciled = ['date,direction,party,amount,reference,status,confidence', ...run.transactions.map(t => [t.date, t.direction, `"${t.party.replaceAll('"', '""')}"`, t.amount, t.reference, t.status, t.confidence].join(','))].join('\n'); zip.file('summary.md', `# HisabAgent Audit Pack\n\n${run.summary.en}\n\n## हिंदी\n${run.summary.hi}\n\nTrust score: ${run.trust.score}/100`); zip.file('reconciled.csv', reconciled); zip.file('exceptions.csv', ['severity,title,detail,suggested_action', ...run.exceptions.map(e => [e.severity, `"${e.title}"`, `"${e.detail}"`, `"${e.suggestedAction}"`].join(','))].join('\n')); zip.file('agent-trace.json', JSON.stringify(run, null, 2)); const url = URL.createObjectURL(await zip.generateAsync({ type: 'blob' })); const link = document.createElement('a'); link.href = url; link.download = `hisabagent-audit-${run.id}.zip`; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url); }

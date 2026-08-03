@@ -34,6 +34,10 @@ npm run dev
 
 Open `http://localhost:3000`. No login or API key is required. `OPENAI_API_KEY` is intentionally optional; the deterministic local agent path powers the full demo.
 
+### Optional live explainer
+
+The demo needs **no key**. If `OPENAI_API_KEY` is configured (and optionally `OPENAI_MODEL`), HisabAgent calls its server-only `/api/explain` route after deterministic reconciliation to improve the owner summary. The key is never sent to the browser; unavailable or failed live calls always retain the offline explanation.
+
 ## Why this is not a chat-invoice tool
 
 HisabAgent does not generate invoices or place a chatbot in front of a ledger. Its moat is the inspectable multi-agent reconciliation trace, confidence-banded evidence links, a human exception queue, bilingual owner explanation, and golden eval harness. It deliberately surfaces uncertainty instead of silently forcing a match.
