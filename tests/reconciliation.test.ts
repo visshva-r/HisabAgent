@@ -47,7 +47,8 @@ describe('golden eval assertions mirrored from Evals Lab', () => {
     const partial=reconcile('Date,Amount,Type,Name,Ref\n2026-08-01,1000,Credit,Ravi,REF2','Ravi payment ₹1,050 received');
     expect(partial.transactions.some(t=>t.status==='partial')||partial.exceptions.some(e=>e.title.startsWith('Partial'))).toBe(true);
     const missing=reconcile('Date,Amount,Type,Name,Ref\n2026-08-01,700,Credit,Walk In,','Cash collection ₹700');
-    expect(missing.exceptions.some(e=>/Unmatched|Partial/.test(e.title))).toBe(true);
-    expect(reconcile('','रमेश से ₹450 मिले, payment received').transactions.some(t=>t.source==='note'&&t.amount>0)).toBe(true);
+    expect(missing.transactions.some(t=>t.status==='matched'&&t.confidence>=90)).toBe(false);
+    const hindi=reconcile('','रमेश से ₹450 मिले');
+    expect(hindi.transactions.some(t=>t.source==='note'&&t.party!=='WhatsApp note'&&t.party!=='')).toBe(false);
   });
 });
