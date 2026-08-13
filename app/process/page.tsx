@@ -5,7 +5,7 @@ import { ArrowRight, FileText, Image as ImageIcon } from 'lucide-react';
 const agents = [
   ['01', 'Planner', 'Profiles the evidence and fixes policy before any record is touched.'],
   ['02', 'Ingestor', 'Normalizes CSV (comma / semicolon / tab) and informal payment notes.'],
-  ['03', 'Matcher', 'Links by reference, amount and party — never upgrades weak evidence.'],
+  ['03', 'Matcher', 'Links by reference, amount and party. Never upgrades weak evidence.'],
   ['04', 'Critic', 'Downgrades only: duplicates, fuzzy names, date outliers, GST mismatches.'],
   ['05', 'Explainer', 'States the same numbers in English and Hindi, including what is open.'],
 ] as const;
@@ -62,15 +62,15 @@ export default function Process() {
           </p>
           <ul className="mt-5 space-y-3 text-sm text-slate-400">
             <li>
-              <span className="font-medium text-slate-200">Locked charter</span> — Project folder, tracks, multi-agent
+              <span className="font-medium text-slate-200">Locked charter.</span> Project folder, tracks, multi-agent
               architecture, no-key demo.
             </li>
             <li>
-              <span className="font-medium text-slate-200">Agentic implementation</span> — engine, pages, samples, evals,
+              <span className="font-medium text-slate-200">Agentic implementation.</span> Engine, pages, samples, evals,
               docs in iterative Codex passes.
             </li>
             <li>
-              <span className="font-medium text-slate-200">Verify + review</span> — build/eval loops, then QA remediation
+              <span className="font-medium text-slate-200">Verify + review.</span> Build/eval loops, then QA remediation
               without changing product identity.
             </li>
           </ul>

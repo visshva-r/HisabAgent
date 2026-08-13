@@ -17,7 +17,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'HisabAgent — books that explain themselves',
+  title: 'HisabAgent: books that explain themselves',
   description: 'The MSME back-office agent for messy real-world money.',
 };
 

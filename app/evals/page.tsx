@@ -30,7 +30,7 @@ export default function Evals() {
         <p className="mt-4 max-w-3xl leading-relaxed text-slate-400">
           Twelve fixtures run in your browser against the same deterministic engine the workspace uses: eight golden
           scenarios and four adversarial ones built to make the agent overreach. Two fixtures are documented limitations
-          and are expected to fail — they stay in the suite so the gap cannot be quietly lost.
+          and are expected to fail. They stay in the suite so the gap cannot be quietly lost.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -61,7 +61,7 @@ export default function Evals() {
               <dt className="font-semibold">PASS / FAIL</dt>
               <dd className="text-slate-400">
                 The result of that fixture&apos;s assertion. FAIL on a documented limitation is the honest, expected
-                outcome — not a crash.
+                outcome, not a crash.
               </dd>
             </div>
           </div>
@@ -70,8 +70,8 @@ export default function Evals() {
             <div>
               <dt className="font-semibold">Output Trust</dt>
               <dd className="text-slate-400">
-                The trust score the engine assigned to that fixture&apos;s own output (0–100). It measures the reconciled
-                result, not whether the assertion passed — a correctly cautious run scores low on purpose.
+                The trust score the engine assigned to that fixture&apos;s own output (0-100). It measures the reconciled
+                result, not whether the assertion passed. A correctly cautious run scores low on purpose.
               </dd>
             </div>
           </div>
@@ -164,8 +164,8 @@ export default function Evals() {
 
         <p className="mt-6 max-w-3xl text-xs leading-relaxed text-slate-500">
           The same fixtures run headless via <span className="mono text-slate-400">npm run eval</span> and are asserted in{' '}
-          <span className="mono text-slate-400">npm test</span>, where any change of behaviour on a fixture — including a
-          documented limitation starting to pass — is reported as a regression to review.
+          <span className="mono text-slate-400">npm test</span>, where any change of behaviour on a fixture, including a
+          documented limitation starting to pass, is reported as a regression to review.
         </p>
       </div>
       <Footer />

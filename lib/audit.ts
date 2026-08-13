@@ -24,10 +24,10 @@ export function buildAuditFiles(run: RunResult): AuditFile[] {
   ].join('\n');
 
   const summary = [
-    `# HisabAgent audit pack — ${run.shopName}`,
+    `# HisabAgent audit pack: ${run.shopName}`,
     '',
     `Run: ${run.id} · ${new Date(run.createdAt).toLocaleString()} · critic passes: ${run.criticPasses}`,
-    `Output Trust: ${run.trust.score}/100 (${run.trust.band}) — ${run.trust.guidance}`,
+    `Output Trust: ${run.trust.score}/100 (${run.trust.band}). ${run.trust.guidance}`,
     '',
     '## Owner summary (English)',
     run.summary.en,
@@ -36,7 +36,7 @@ export function buildAuditFiles(run: RunResult): AuditFile[] {
     run.summary.hi,
     '',
     '## How Output Trust was calculated',
-    `base ${run.trust.breakdown.base} + match points ${run.trust.breakdown.matchPoints} (${run.trust.breakdown.matchedRecords}/${run.trust.breakdown.totalRecords} matched) − high-severity penalty ${run.trust.breakdown.highSeverityPenalty} − critic penalty ${run.trust.breakdown.criticPenalty} = ${run.trust.breakdown.raw}, clamped to ${run.trust.breakdown.floor}–${run.trust.breakdown.ceiling} → ${run.trust.score}`,
+    `base ${run.trust.breakdown.base} + match points ${run.trust.breakdown.matchPoints} (${run.trust.breakdown.matchedRecords}/${run.trust.breakdown.totalRecords} matched) - high-severity penalty ${run.trust.breakdown.highSeverityPenalty} - critic penalty ${run.trust.breakdown.criticPenalty} = ${run.trust.breakdown.raw}, clamped to ${run.trust.breakdown.floor}-${run.trust.breakdown.ceiling} → ${run.trust.score}`,
     '',
     '## Reconciliation policy used',
     ...run.plan.observations.map((observation) => `- ${observation}`),

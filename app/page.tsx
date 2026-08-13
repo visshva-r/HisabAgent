@@ -16,7 +16,7 @@ export default function Home() {
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-slate-300 sm:text-lg">
               A deterministic back-office agent for Indian MSMEs. It matches what it can prove, holds what it cannot,
-              and explains the day in English and Hindi — offline, with no API key.
+              and explains the day in English and Hindi. Offline, with no API key.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
@@ -94,7 +94,7 @@ export default function Home() {
           <div>
             <h2 className="font-semibold">Output Trust is arithmetic.</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-400">
-              Every score shows its formula. Deeper critic passes can only lower trust — never quietly restore it.
+              Every score shows its formula. Deeper critic passes can only lower trust, never quietly restore it.
             </p>
           </div>
           <div>

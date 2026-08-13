@@ -135,7 +135,7 @@ export function Workspace() {
     const result = reconcile(csv, notes, shop.trim() || 'Your shop', lang);
     if (!result.transactions.length) {
       setRun(null);
-      setError('Nothing usable was found. Every row needs an amount — check the amount column or add ₹ values to the notes.');
+      setError('Nothing usable was found. Every row needs an amount. Check the amount column or add ₹ values to the notes.');
       return;
     }
     setError('');
@@ -387,7 +387,7 @@ export function Workspace() {
                       </button>
                     )}
                     {llmState === 'unavailable' && (
-                      <span className="text-xs text-slate-400">No API key — offline explanation unchanged.</span>
+                      <span className="text-xs text-slate-400">No API key. Offline explanation unchanged.</span>
                     )}
                   </div>
                 </div>
@@ -437,7 +437,7 @@ function Timeline({ run }: { run: RunResult | null }) {
     <aside className="panel rounded-2xl p-5">
       <h2 className="font-semibold">Agent trace</h2>
       <p className="mt-1 text-xs text-slate-400">
-        {run ? 'Measured on this run — no artificial delays.' : 'Runs top to bottom when you start the agent.'}
+        {run ? 'Measured on this run. No artificial delays.' : 'Runs top to bottom when you start the agent.'}
       </p>
       <div className="mt-4 space-y-4">
         {AGENTS.map(([agent, detail]) => {
@@ -605,11 +605,11 @@ function Trust({ run }: { run: RunResult }) {
           </li>
           <li>− {breakdown.criticPenalty} carried from critic passes (4 per pulled-back link)</li>
           <li>
-            = {breakdown.raw}, clamped to {breakdown.floor}–{breakdown.ceiling} → <b className="text-mint">{trust.score}</b>
+            = {breakdown.raw}, clamped to {breakdown.floor}-{breakdown.ceiling} → <b className="text-mint">{trust.score}</b>
           </li>
         </ul>
         <p className="mt-2 leading-relaxed text-slate-500">
-          Bands: 80+ High, 55–79 Moderate, below 55 Low. Deterministic — the same evidence always produces the same score.
+          Bands: 80+ High, 55-79 Moderate, below 55 Low. Deterministic: the same evidence always produces the same score.
         </p>
       </details>
     </div>
@@ -709,7 +709,7 @@ function AuditPreview({ run }: { run: RunResult }) {
 
 /**
  * Turns an exception into a message a shop owner would actually send on
- * WhatsApp — no internal vocabulary, no scores, no agent names.
+ * WhatsApp. No internal vocabulary, scores, or agent names.
  */
 export function reminder(exception: Exception, shop: string, lang: string) {
   const amount = money(exception.amount);
@@ -719,8 +719,8 @@ export function reminder(exception: Exception, shop: string, lang: string) {
       hi: `नमस्ते! ${shop} से। आपका ${amount} का पेमेंट मेरे रिकॉर्ड में दो बार आ गया है। एक ही बार भेजा था ना? UPI का स्क्रीनशॉट या रेफरेंस भेज दीजिए, मैं हिसाब ठीक कर देता हूँ। धन्यवाद!`,
     },
     'amount-mismatch': {
-      en: `Namaste! ${shop} se. Aapke payment me ${amount} tak ka farak aa raha hai — mere yahan alag amount dikh raha hai. Kitna bheja tha, ek baar bata dijiye? Baaki ka main adjust kar deta hoon.`,
-      hi: `नमस्ते! ${shop} से। आपके पेमेंट में ${amount} तक का फ़र्क आ रहा है — मेरे यहाँ अलग रकम दिख रही है। कितना भेजा था, एक बार बता दीजिए? बाकी मैं ठीक कर देता हूँ।`,
+      en: `Namaste! ${shop} se. Aapke payment me ${amount} tak ka farak aa raha hai. Mere yahan alag amount dikh raha hai. Kitna bheja tha, ek baar bata dijiye? Baaki ka main adjust kar deta hoon.`,
+      hi: `नमस्ते! ${shop} से। आपके पेमेंट में ${amount} तक का फ़र्क आ रहा है। मेरे यहाँ अलग रकम दिख रही है। कितना भेजा था, एक बार बता दीजिए? बाकी मैं ठीक कर देता हूँ।`,
     },
     partial: {
       en: `Namaste! ${shop} se. Aapka ${amount} ka payment aaya hai par pura amount match nahi ho raha. Baaki paisa baad me bhejna hai ya poora ho gaya? Bata dijiye.`,
