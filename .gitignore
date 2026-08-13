@@ -5,3 +5,4 @@ data/runs/*.json
 test-results
 playwright-report
 .env
+HISABAGENT_MASTER_CONTEXT.md
