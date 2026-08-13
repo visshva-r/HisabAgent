@@ -1,15 +1,174 @@
 'use client';
-import {useState} from 'react'; import {CheckCircle2,Play,Timer,AlertTriangle} from 'lucide-react'; import {Nav} from '@/components/nav'; import {reconcile} from '@/lib/reconciliation';
-type Row={actual:string;pass:boolean;reason:string;score:number;ms:number};
-const fixtures=[
- ['Clean UPI CSV','matched confidence ≥ 90','Date,Amount,Type,Name,Ref\n2026-08-01,2500,Credit,Anita,REF111','Anita paid ₹2,500 UPI ref REF111'],
- ['Messy CSV duplicate','duplicate flag or exception','txn_date,amt,dr/cr,remark,utr\n01/08/2026,"2,500",CR,ANITA,REF1\n01/08/2026,"2,500",CR,ANITA,REF1',''],
- ['WhatsApp-only notes','at least one note transaction','', 'Ramesh se ₹450 received today'],
- ['Mixed CSV + notes','matched record with cross-source evidence','Date,Amount,Type,Name,Ref\n2026-08-01,1200,Credit,Mohan,REF777','Mohan paid ₹1,200 UPI ref REF777'],
- ['Duplicate payments','duplicate attention in exception queue','Date,Amount,Type,Name,Ref\n2026-08-01,900,Credit,Ravi,REF9\n2026-08-01,900,Credit,Ravi,REF9',''],
- ['Partial amount match','partial status or partial exception','Date,Amount,Type,Name,Ref\n2026-08-01,1000,Credit,Ravi,REF2','Ravi payment ₹1,050 received'],
- ['Missing references (hard)','must produce a high-confidence match','Date,Amount,Type,Name,Ref\n2026-08-01,700,Credit,Walk In,','Cash collection ₹700'],
- ['Hindi-only (hard)','must extract a named counterparty','', 'रमेश से ₹450 मिले']
-] as const;
-function evaluate(i:number,csv:string,notes:string):Omit<Row,'ms'>{const r=reconcile(csv,notes),tx=r.transactions,ex=r.exceptions;let pass=false,actual='',reason='';if(i===0){const x=tx.find(t=>t.status==='matched');pass=!!x&&x.confidence>=90;actual=x?`matched confidence ${x.confidence}`:'no match';reason=x?`matched confidence ${x.confidence} ${x.confidence>=90?'≥':'<'} 90`:'expected high-confidence match; found: no'}else if(i===1){const n=tx.filter(t=>t.flags.length).length;pass=n>0||ex.some(e=>/duplicate/i.test(e.title));actual=`${n} flagged, ${ex.length} exceptions`;reason=`expected duplicate signal; found: ${n>0?'yes':'no'}`}else if(i===2){const n=tx.filter(t=>t.source==='note').length;pass=n>0;actual=`${n} note transactions`;reason=`expected note transaction; found: ${n}`}else if(i===3){const x=tx.find(t=>t.status==='matched'&&/note|upi|cross/i.test(t.matchReason));pass=!!x;actual=x?x.matchReason:'no cross-source match';reason=x?'matched with cross-source evidence':'expected cross-source evidence; found: no'}else if(i===4){const n=ex.filter(e=>/duplicate/i.test(e.title)).length;pass=n>0;actual=`${n} duplicate exceptions`;reason=`expected duplicate exception; found: ${n?'yes':'no'}`}else if(i===5){const n=tx.filter(t=>t.status==='partial').length;pass=n>0||ex.some(e=>e.title.startsWith('Partial'));actual=`${n} partial transactions`;reason=`expected partial routing; found: ${n?'yes':'no'}`}else if(i===6){const x=tx.find(t=>t.status==='matched'&&t.confidence>=90);pass=!!x;actual=x?`matched confidence ${x.confidence}`:`${ex.length} human exceptions`;reason=`expected high-confidence match without reference; found: ${x?'yes':'no'}`}else{const x=tx.find(t=>t.source==='note');pass=!!x&&x.party!=='WhatsApp note'&&x.party!=='';actual=x?`amount ₹${x.amount}, party “${x.party}”`:'no parsed note';reason=`expected named Hindi counterparty; found: ${x?.party||'none'}`}return {pass,actual,reason,score:r.trust.score}}
-export default function Evals(){const [rows,setRows]=useState<Row[]|null>(null);function go(){setRows(fixtures.map(([,,csv,notes],i)=>{const start=performance.now();const row=evaluate(i,csv,notes);const ms=Math.round(performance.now()-start);return {...row,ms}}))}return <main className="min-h-screen"><Nav/><div className="relative mx-auto max-w-6xl px-5 py-12"><p className="text-xs font-bold uppercase tracking-[.2em] text-mint">Reliability, not vibes</p><h1 className="mt-3 text-5xl font-black tracking-tight">Evals Lab</h1><p className="mt-4 max-w-2xl text-slate-400">Hard cases are intentionally allowed to fail when the evidence is insufficient.</p><button onClick={go} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-mint px-5 py-3 font-bold text-ink"><Play size={17}/>Run all 8 golden evals</button><div className="mt-8 overflow-auto rounded-2xl border border-white/10"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-white/5 text-xs text-slate-400"><tr><th className="p-4">Scenario</th><th>Expected check</th><th>Actual observed</th><th>Result</th><th>Score</th><th>Latency</th><th>Reason</th></tr></thead><tbody>{fixtures.map(([name,expected],i)=>{const row=rows?.[i];return <tr key={name} className="border-t border-white/10"><td className="p-4 font-bold">{name}</td><td>{expected}</td><td>{row?.actual||'—'}</td><td>{row?(row.pass?<span className="flex gap-1 text-mint"><CheckCircle2 size={15}/>PASS</span>:<span className="flex gap-1 text-amber"><AlertTriangle size={15}/>FAIL</span>):'Ready'}</td><td>{row?`${row.score}/100`:'—'}</td><td>{row?<span className="flex gap-1"><Timer size={14}/>{row.ms===0?'<1ms':`${row.ms}ms`}</span>:'—'}</td><td className="max-w-xs text-xs text-slate-400">{row?.reason||'—'}</td></tr>})}</tbody></table></div></div></main>}
+
+import { useState } from 'react';
+import { AlertTriangle, CheckCircle2, HelpCircle, Play, Timer } from 'lucide-react';
+import { Nav } from '@/components/nav';
+import { Footer } from '@/components/footer';
+import { EvalRow, fixtures, runAllFixtures, summarize } from '@/lib/evals';
+
+const GROUP_STYLE = {
+  golden: 'text-mint',
+  adversarial: 'text-violet',
+} as const;
+
+const BAND_STYLE = {
+  High: 'text-mint',
+  Moderate: 'text-amber',
+  Low: 'text-danger',
+} as const;
+
+export default function Evals() {
+  const [rows, setRows] = useState<EvalRow[] | null>(null);
+  const stats = rows ? summarize(rows) : null;
+
+  return (
+    <main className="min-h-screen">
+      <Nav />
+      <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-5 sm:py-12">
+        <p className="text-xs font-semibold uppercase tracking-[.18em] text-mint">Measured behaviour</p>
+        <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Evals Lab</h1>
+        <p className="mt-4 max-w-3xl leading-relaxed text-slate-400">
+          Twelve fixtures run in your browser against the same deterministic engine the workspace uses: eight golden
+          scenarios and four adversarial ones built to make the agent overreach. Two fixtures are documented limitations
+          and are expected to fail — they stay in the suite so the gap cannot be quietly lost.
+        </p>
+
+        <div className="mt-8 flex flex-wrap items-center gap-4">
+          <button
+            onClick={() => setRows(runAllFixtures())}
+            className="inline-flex items-center gap-2 rounded-xl bg-mint px-5 py-3 font-semibold text-ink transition hover:brightness-110"
+          >
+            <Play size={17} />
+            Run all {fixtures.length} evals
+          </button>
+          {stats && (
+            <p className="text-sm text-slate-300">
+              <b className="text-mint">{stats.passing}</b> passing · <b className="text-amber">{stats.knownLimitations}</b>{' '}
+              documented limitation(s) ·{' '}
+              {stats.regressions.length ? (
+                <b className="text-danger">{stats.regressions.length} regression(s)</b>
+              ) : (
+                <span className="text-slate-400">no regressions against documented behaviour</span>
+              )}
+            </p>
+          )}
+        </div>
+
+        <dl className="mt-8 grid gap-3 rounded-2xl border border-white/10 bg-black/15 p-4 text-xs leading-relaxed sm:grid-cols-2">
+          <div className="flex gap-2">
+            <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-mint" />
+            <div>
+              <dt className="font-semibold">PASS / FAIL</dt>
+              <dd className="text-slate-400">
+                The result of that fixture&apos;s assertion. FAIL on a documented limitation is the honest, expected
+                outcome — not a crash.
+              </dd>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <HelpCircle size={15} className="mt-0.5 shrink-0 text-sky" />
+            <div>
+              <dt className="font-semibold">Output Trust</dt>
+              <dd className="text-slate-400">
+                The trust score the engine assigned to that fixture&apos;s own output (0–100). It measures the reconciled
+                result, not whether the assertion passed — a correctly cautious run scores low on purpose.
+              </dd>
+            </div>
+          </div>
+        </dl>
+
+        <p className="mt-6 text-xs text-slate-500 lg:hidden">Scroll the table sideways to see trust and reasons →</p>
+        <div className="scroll-shadow mt-3 rounded-2xl border border-white/10">
+          <div className="overflow-auto rounded-2xl">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead className="bg-white/5 text-[11px] uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="p-4 font-medium">Scenario</th>
+                  <th className="font-medium">Expected check</th>
+                  <th className="font-medium">Actual observed</th>
+                  <th className="font-medium">Result</th>
+                  <th className="font-medium" title="Trust score of this fixture's reconciled output, 0-100">
+                    Output Trust
+                  </th>
+                  <th className="font-medium">Latency</th>
+                  <th className="p-4 font-medium">Why</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fixtures.map((fixture, index) => {
+                  const row = rows?.[index];
+                  return (
+                    <tr key={fixture.id} className="border-t border-white/10 align-top">
+                      <td className="p-4">
+                        <p className="font-semibold">{fixture.name}</p>
+                        <span className={`mt-1 block text-[10px] font-medium uppercase tracking-wide ${GROUP_STYLE[fixture.group]}`}>
+                          {fixture.group}
+                        </span>
+                        {fixture.outcome === 'known-limitation' && (
+                          <span className="mt-1 block text-[10px] font-medium text-amber">
+                            documented limitation
+                          </span>
+                        )}
+                      </td>
+                      <td className="max-w-[190px] py-4 text-xs leading-relaxed text-slate-300">{fixture.expected}</td>
+                      <td className="max-w-[190px] py-4 text-xs leading-relaxed text-slate-400">{row?.actual || '—'}</td>
+                      <td className="py-4">
+                        {row ? (
+                          row.pass ? (
+                            <span className="flex items-center gap-1 text-xs font-semibold text-mint">
+                              <CheckCircle2 size={14} />
+                              PASS
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs font-semibold text-amber">
+                              <AlertTriangle size={14} />
+                              FAIL
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-xs text-slate-500">Ready</span>
+                        )}
+                        {row && !row.matchesDocumentedBehaviour && (
+                          <span className="mt-1 block text-[10px] font-semibold uppercase text-danger">regression</span>
+                        )}
+                      </td>
+                      <td className="tabular py-4 text-xs">
+                        {row ? (
+                          <>
+                            <b>{row.trust}</b>
+                            <span className="text-slate-500">/100</span>
+                            <span className={`mt-0.5 block text-[10px] ${BAND_STYLE[row.band as 'High']}`}>{row.band}</span>
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="tabular py-4 text-xs text-slate-400">
+                        {row ? (
+                          <span className="flex items-center gap-1">
+                            <Timer size={13} />
+                            {row.ms < 1 ? '<1ms' : `${Math.round(row.ms)}ms`}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="max-w-[240px] p-4 text-xs leading-relaxed text-slate-400">{row?.reason || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <p className="mt-6 max-w-3xl text-xs leading-relaxed text-slate-500">
+          The same fixtures run headless via <span className="mono text-slate-400">npm run eval</span> and are asserted in{' '}
+          <span className="mono text-slate-400">npm test</span>, where any change of behaviour on a fixture — including a
+          documented limitation starting to pass — is reported as a regression to review.
+        </p>
+      </div>
+      <Footer />
+    </main>
+  );
+}

@@ -106,6 +106,18 @@ Deployed publicly on Vercel with **no required environment variables**.
 
 ---
 
+## Post-submission hardening pass (after the deadline)
+
+For full transparency, work done on the repository **after** the submission was locked is recorded separately and was **not** part of the judged submission:
+
+- The single reconciliation file was split into typed agent modules under `lib/agents/`.
+- The critic gained fuzzy-name duplicates, repeat-amount/date outliers, shared-reference amount mismatches, ambiguous-match refusal and round-amount checks.
+- Two ingestion bugs were fixed: a leading date could be read as the amount (`₹2,500` → `₹1`), and semicolon-separated exports were not parsed.
+- Four adversarial fixtures and a regression-guarded eval harness were added, plus Output Trust bands and the live trust formula.
+- Craft pass: IBM Plex typeface, status badges, audit preview, run history, natural Hinglish owner messages.
+
+That pass was carried out in Cursor (Opus), not in Codex. The judged application — architecture, engine, UI and eval harness as submitted — was built inside Codex as described above.
+
 ## Important distinction for judges
 
 - **Use of Codex (hackathon criterion)** = Codex as the **engineering agent** that planned/built/reviewed the application.

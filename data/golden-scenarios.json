@@ -1,10 +1,17 @@
-[
-  {"id":"clean-upi","name":"Clean UPI CSV","target":"reference match accuracy"},
-  {"id":"messy-csv","name":"Messy CSV","target":"header and duplicate robustness"},
-  {"id":"whatsapp-only","name":"WhatsApp-only notes","target":"informal language extraction"},
-  {"id":"mixed","name":"Mixed day pack","target":"cross-source reconciliation"},
-  {"id":"duplicates","name":"Duplicate payments","target":"duplicate detection"},
-  {"id":"partial","name":"Partial amount matches","target":"human-review routing"},
-  {"id":"missing-ref","name":"Missing references","target":"safe unmatched handling"},
-  {"id":"hinglish","name":"Hindi + English mixed","target":"mixed language resilience"}
-]
+{
+  "note": "Documentation of the eval suite. The executable source of truth is lib/evals.ts, which the Evals Lab page, npm test and npm run eval all import.",
+  "scenarios": [
+    { "id": "clean-upi", "group": "golden", "target": "reference match accuracy", "outcome": "pass" },
+    { "id": "messy-csv", "group": "golden", "target": "odd headers and repeated rows", "outcome": "pass" },
+    { "id": "whatsapp-only", "group": "golden", "target": "informal language extraction", "outcome": "pass" },
+    { "id": "mixed", "group": "golden", "target": "cross-source reconciliation", "outcome": "pass" },
+    { "id": "duplicates", "group": "golden", "target": "duplicate detection", "outcome": "pass" },
+    { "id": "partial", "group": "golden", "target": "human-review routing", "outcome": "pass" },
+    { "id": "missing-ref", "group": "golden", "target": "no high confidence without a reference", "outcome": "known-limitation" },
+    { "id": "hindi-only", "group": "golden", "target": "Devanagari counterparty names", "outcome": "known-limitation" },
+    { "id": "over-matching", "group": "adversarial", "target": "refuses coin-toss matches", "outcome": "pass" },
+    { "id": "corrupt-csv", "group": "adversarial", "target": "drops unreadable rows instead of inventing amounts", "outcome": "pass" },
+    { "id": "hindi-log", "group": "adversarial", "target": "parses money, queues unnamed parties", "outcome": "pass" },
+    { "id": "gst-rounding", "group": "adversarial", "target": "escalates amount mismatch on a shared reference", "outcome": "pass" }
+  ]
+}
