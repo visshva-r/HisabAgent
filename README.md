@@ -2,7 +2,8 @@
 
 **The MSME back-office agent for messy real-world money.** HisabAgent turns chaotic UPI exports and WhatsApp-style payment notes into a reconciled ledger, a short queue of owner decisions, bilingual explanations, and an inspectable audit pack.
 
-Live demo: [hisab-agent.vercel.app](https://hisab-agent.vercel.app/)
+Live demo: [hisab-agent.vercel.app](https://hisab-agent.vercel.app/)  
+GitHub: [visshva-r/HisabAgent](https://github.com/visshva-r/HisabAgent)
 
 ## Why it matters
 
@@ -21,6 +22,8 @@ Each stage is its own typed module under `lib/agents/`, wired sequentially by `r
 | `lib/agents/matcher.ts` | Links records across sources. Shared reference → 96; name and amount only → 82; near amount → `partial`. A shared reference with disagreeing amounts is escalated, never matched. |
 | `lib/agents/critic.ts` | Attacks the matcher's output and computes Output Trust. Rules can only make the ledger more cautious. |
 | `lib/agents/explainer.ts` | States the same numbers in English and Hindi, including what is still open. |
+
+More detail: [`docs/architecture.md`](docs/architecture.md)
 
 ### What the critic actually checks
 
@@ -66,7 +69,6 @@ npm run build  # production build
 ## Local setup
 
 ```bash
-cd Project
 npm install
 npm run dev
 ```
@@ -87,26 +89,23 @@ The demo needs no key. If `OPENAI_API_KEY` is set (optionally `OPENAI_MODEL`), t
 
 HisabAgent does not generate invoices or put a chatbot in front of a ledger. Its edge is the inspectable multi-agent trace, confidence-banded evidence, an adversarial critic that argues with its own matcher, a human exception queue with ready-to-send owner messages, and a regression-guarded eval suite.
 
+## Stack
+
+- Next.js (App Router) + TypeScript + Tailwind CSS
+- Client-side reconciliation (offline-first)
+- Vitest + Playwright smoke tests
+- Optional OpenAI API for summary wording only
+
 ## Limitations
 
-The parser is rule-based and built for demo-grade CSV and plain text, not bank-grade accounting. It does not replace a CA review, live bank APIs, OCR verification or statutory tax compliance. Devanagari counterparty names are not yet tokenised (fixture `hindi-only` keeps that gap visible). Ambiguous names, dates and split payments stay in the human queue by design.
-
-## How Codex built this
-
-OpenAI Codex (5.6 Terra, High effort) implemented the app architecture, deterministic agents, interface, sample evidence, audit export, automated tests and iterative review fixes. Product direction, requirements and judging narrative were supplied by the project owner.
-
-Judge evidence pack:
-- Process write-up: [`docs/codex-process.md`](docs/codex-process.md)
-- Session screenshots: [`docs/codex-evidence/`](docs/codex-evidence/) (`00-spec-prompt.png` … `03-polish-review.png`)
-
-A later hardening pass (the split into `lib/agents/`, the extra critic rules, the two ingestion bug fixes, the adversarial fixtures and the craft polish) was done after the submission deadline in Cursor, and is listed under “Post-submission hardening pass” in the same write-up.
+The parser is rule-based and built for realistic demo CSV and plain text, not bank-grade accounting. It does not replace a CA review, live bank APIs, OCR verification or statutory tax compliance. Devanagari counterparty names are not yet tokenised (fixture `hindi-only` keeps that gap visible). Ambiguous names, dates and split payments stay in the human queue by design.
 
 ## Deploy to Vercel
 
-1. Push this `Project` folder to a Git repository.
-2. In Vercel choose **Add New → Project**, import the repository, and set the Root Directory to `Project` if the repository contains other folders.
-3. Keep the default Next.js build command (`npm run build`) and deploy. No environment variables are needed.
-4. `OPENAI_API_KEY` can be added later for the optional explainer; it must never become a deployment requirement.
+1. Import the GitHub repository in Vercel.
+2. Keep the default Next.js build command (`npm run build`).
+3. No environment variables are required.
+4. Optionally add `OPENAI_API_KEY` later for the explainer; never make it a deploy requirement.
 
 ## Project map
 
@@ -115,6 +114,7 @@ A later hardening pass (the split into `lib/agents/`, the extra critic rules, th
 - `lib/evals.ts`: the twelve fixtures shared by the UI, the tests and the CLI
 - `lib/audit.ts`: audit pack builder used by both the in-page preview and the ZIP
 - `components/workspace.tsx`: intake, agent trace, ledger, trust meter, audit preview, run history
-- `app/evals`: the fixture dashboard with Output Trust and documented limitations
-- `app/process`: architecture and Codex evidence for judges
+- `app/evals`: fixture dashboard with Output Trust and documented limitations
+- `app/process`: architecture overview
+- `docs/architecture.md`: pipeline and trust details
 - `tests/`: Vitest unit and fixture suites, Playwright demo-path smoke test

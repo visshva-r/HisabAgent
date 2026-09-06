@@ -7,7 +7,7 @@ import { Menu } from 'lucide-react';
 const links = [
   ['/workspace', 'Workspace'],
   ['/evals', 'Evals Lab'],
-  ['/process', 'Process'],
+  ['/process', 'Architecture'],
 ] as const;
 
 export function Nav() {

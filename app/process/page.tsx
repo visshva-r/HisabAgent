@@ -1,6 +1,6 @@
 import { Nav } from '@/components/nav';
 import { Footer } from '@/components/footer';
-import { ArrowRight, FileText, Image as ImageIcon } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 const agents = [
   ['01', 'Planner', 'Profiles the evidence and fixes policy before any record is touched.'],
@@ -10,27 +10,34 @@ const agents = [
   ['05', 'Explainer', 'States the same numbers in English and Hindi, including what is open.'],
 ] as const;
 
+const principles = [
+  ['Offline first', 'The full reconciliation path runs in the browser with zero API keys.'],
+  ['Prove or hold', 'Matches need independent evidence. Ambiguous money stays in a human queue.'],
+  ['Trust is arithmetic', 'Output Trust is a published formula, not a vibe score or LLM claim.'],
+  ['Test overreach', 'Golden and adversarial fixtures guard regressions, including known gaps.'],
+] as const;
+
 export default function Process() {
   return (
     <main className="min-h-screen">
       <Nav />
       <div className="relative mx-auto max-w-6xl px-5 py-12">
-        <p className="text-xs font-semibold uppercase tracking-[.18em] text-mint">How it is built</p>
+        <p className="text-xs font-semibold uppercase tracking-[.18em] text-mint">Architecture</p>
         <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
           A back-office agent
           <br />
           you can inspect.
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-300">
-          Built primarily with OpenAI Codex (5.6 Terra, High). Product direction stayed outside the loop; architecture,
-          agents, UI, tests and review fixes were implemented inside it.
+          HisabAgent is a deterministic multi-agent pipeline for messy Indian MSME payments. Each stage is a typed
+          module, timed for real, and recorded in the downloadable audit pack.
         </p>
 
         <div className="panel mt-10 rounded-2xl p-5 sm:p-7">
           <h2 className="font-semibold">Pipeline</h2>
           <p className="mt-1 text-sm text-slate-400">
-            One module each under <span className="mono text-slate-300">lib/agents/</span>. Timed for real on every run;
-            the same trace ships in the audit pack.
+            One module each under <span className="mono text-slate-300">lib/agents/</span>. The same trace ships in the
+            audit pack after every run.
           </p>
           <ol className="mt-6 space-y-0">
             {agents.map((a, i) => (
@@ -55,46 +62,21 @@ export default function Process() {
           </ol>
         </div>
 
-        <section className="mt-12 border-t border-white/10 pt-10">
-          <h2 className="text-xl font-bold tracking-tight">OpenAI Codex evidence</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-300">
-            Judge-facing trail: locked charter, multi-file diffs, build verification, and polish/review screenshots.
-          </p>
-          <ul className="mt-5 space-y-3 text-sm text-slate-400">
-            <li>
-              <span className="font-medium text-slate-200">Locked charter.</span> Project folder, tracks, multi-agent
-              architecture, no-key demo.
-            </li>
-            <li>
-              <span className="font-medium text-slate-200">Agentic implementation.</span> Engine, pages, samples, evals,
-              docs in iterative Codex passes.
-            </li>
-            <li>
-              <span className="font-medium text-slate-200">Verify + review.</span> Build/eval loops, then QA remediation
-              without changing product identity.
-            </li>
-          </ul>
-          <div className="mt-6 flex flex-wrap gap-3 text-sm">
-            <a
-              className="inline-flex items-center gap-2 rounded-lg border border-mint/30 bg-mint/10 px-3 py-2 font-semibold text-mint hover:bg-mint/15"
-              href="https://github.com/visshva-r/HisabAgent/blob/main/docs/codex-process.md"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <FileText size={16} />
-              docs/codex-process.md
-            </a>
-            <a
-              className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 font-semibold text-slate-300 hover:border-sky/40 hover:text-sky"
-              href="https://github.com/visshva-r/HisabAgent/tree/main/docs/codex-evidence"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ImageIcon size={16} />
-              docs/codex-evidence/
-            </a>
-          </div>
+        <section className="mt-12 grid gap-6 sm:grid-cols-2">
+          {principles.map(([title, detail]) => (
+            <article key={title} className="border-t border-white/10 pt-4">
+              <h2 className="font-semibold">{title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">{detail}</p>
+            </article>
+          ))}
         </section>
+
+        <p className="mt-10 text-sm text-slate-500">
+          Deeper write-up:{' '}
+          <a className="text-mint hover:underline" href="https://github.com/visshva-r/HisabAgent/blob/main/docs/architecture.md">
+            docs/architecture.md
+          </a>
+        </p>
       </div>
       <Footer />
     </main>
