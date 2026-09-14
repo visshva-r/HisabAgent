@@ -162,20 +162,99 @@ export const fixtures: Fixture[] = [
   },
   {
     id: 'hindi-only',
-    name: 'Hindi counterparty name (hard)',
+    name: 'Hindi counterparty name',
     group: 'golden',
-    expected: 'Should extract the Devanagari counterparty name',
-    outcome: 'known-limitation',
+    expected: 'Extracts the Devanagari counterparty name',
+    outcome: 'pass',
     csv: '',
     notes: 'रमेश से ₹450 मिले',
     check: (run) => {
       const note = run.transactions.find((t) => t.source === 'note');
+      const named = !!note && note.party.includes('रमेश');
       return {
-        pass: !!note && !generic(note.party),
+        pass: named,
         actual: note ? `amount ₹${note.amount}, party “${note.party}”` : 'nothing parsed',
-        reason: note && generic(note.party)
-          ? 'known gap: amount parsed, Devanagari name not tokenised yet'
-          : `party read as “${note?.party ?? 'none'}”`,
+        reason: named ? 'Devanagari name kept as the counterparty' : 'party was generic or missing',
+      };
+    },
+  },
+  {
+    id: 'fuzzy-names',
+    name: 'Fuzzy party spelling',
+    group: 'golden',
+    expected: 'Same amount under two spellings is held as similar-party, not matched away',
+    outcome: 'pass',
+    csv: 'Date,Amount,Type,Name,Ref\n2026-08-01,900,Credit,Ravi Kumar,R1\n2026-08-01,900,Credit,Ravi Kumr,R2',
+    notes: '',
+    check: (run) => {
+      const similar = run.exceptions.some((e) => e.rule === 'similar-party');
+      return {
+        pass: similar,
+        actual: similar
+          ? run.exceptions.find((e) => e.rule === 'similar-party')!.title
+          : `${run.exceptions.length} exception(s), none similar-party`,
+        reason: similar ? 'edit-distance alias held for the owner' : 'misspelling was treated as two clean payments',
+      };
+    },
+  },
+  {
+    id: 'date-outlier',
+    name: 'Repeat amount weeks apart',
+    group: 'golden',
+    expected: 'Identical amounts more than 7 days apart are repeat-amount risk, not a duplicate',
+    outcome: 'pass',
+    csv: 'Date,Amount,Type,Name,Ref\n2026-08-01,4500,Credit,Ravi Kumar,R1\n2026-08-20,4500,Credit,Ravi Kumar,R2',
+    notes: '',
+    check: (run) => {
+      const outlier = run.exceptions.some((e) => e.rule === 'date-outlier');
+      const duplicate = run.exceptions.some((e) => e.rule === 'duplicate');
+      return {
+        pass: outlier && !duplicate,
+        actual: `${run.exceptions.map((e) => e.rule).join(', ') || 'no exceptions'}`,
+        reason:
+          outlier && !duplicate
+            ? 'recurring amount held without calling it a double entry'
+            : 'date gap was not distinguished from a duplicate',
+      };
+    },
+  },
+  {
+    id: 'round-amount',
+    name: 'Round open amount',
+    group: 'golden',
+    expected: 'An unmatched round ₹25,000 is surfaced for confirmation',
+    outcome: 'pass',
+    csv: 'Date,Amount,Type,Name,Ref\n2026-08-01,25000,Credit,Ravi,R1',
+    notes: '',
+    check: (run) => {
+      const round = run.exceptions.some((e) => e.rule === 'round-amount');
+      return {
+        pass: round,
+        actual: round
+          ? 'round-amount exception raised'
+          : `rules fired: ${run.exceptions.map((e) => e.rule).join(', ') || 'none'}`,
+        reason: round ? 'suspiciously round open amount held' : 'round amount passed as an ordinary unmatched row',
+      };
+    },
+  },
+  {
+    id: 'split-payment',
+    name: 'Split payment notes',
+    group: 'golden',
+    expected: 'Two notes that sum to one UPI amount are queued as a split, not matched',
+    outcome: 'pass',
+    csv: 'Date,Amount,Type,Name,Ref\n2026-08-01,1500,Credit,Ravi Kumar,REF10',
+    notes: 'Ravi paid ₹800\nRavi paid ₹700',
+    check: (run) => {
+      const split = run.exceptions.some((e) => e.rule === 'split-payment');
+      const matched = count(run, 'matched');
+      return {
+        pass: split && matched === 0,
+        actual: `${matched} matched, split=${split}, statuses: ${Array.from(new Set(run.transactions.map((t) => t.status))).join(', ')}`,
+        reason:
+          split && matched === 0
+            ? 'notes summing to the UPI amount were held as a split'
+            : 'split collection was missed or silently linked',
       };
     },
   },
@@ -220,27 +299,34 @@ export const fixtures: Fixture[] = [
     id: 'hindi-log',
     name: 'All-Hindi day log',
     group: 'adversarial',
-    expected: 'Amounts and direction parse; unnamed parties stay in the queue',
+    expected: 'Amounts, direction and Devanagari names parse; unmatched without a UPI export stay in the queue',
     outcome: 'pass',
     csv: '',
     notes: 'रमेश से ₹450 मिले\nमोहन डेयरी को ₹1,200 दिया\nसुनीता से ₹2,000 आए',
     check: (run) => {
       const amounts = run.transactions.map((t) => t.amount);
+      const parties = run.transactions.map((t) => t.party);
       const debits = run.transactions.filter((t) => t.direction === 'debit').length;
       const genericParties = run.transactions.filter((t) => generic(t.party)).length;
+      const named =
+        parties.some((party) => party.includes('रमेश')) &&
+        parties.some((party) => party.includes('मोहन')) &&
+        parties.some((party) => party.includes('सुनीता'));
       const pass =
         run.transactions.length === 3 &&
         amounts.includes(450) &&
         amounts.includes(1200) &&
         amounts.includes(2000) &&
         debits === 1 &&
-        genericParties === 3 &&
-        run.exceptions.length === 3;
+        named &&
+        genericParties === 0 &&
+        count(run, 'unmatched') === 3 &&
+        count(run, 'matched') === 0;
       return {
         pass,
-        actual: `${run.transactions.length} records, ${debits} debit, ${genericParties} unnamed, ${run.exceptions.length} exception(s)`,
+        actual: `${run.transactions.length} records (${parties.join(', ')}), ${debits} debit, ${genericParties} unnamed, ${count(run, 'unmatched')} unmatched`,
         reason: pass
-          ? 'money and direction read correctly; every unnamed record was queued instead of guessed'
+          ? 'Hindi names kept; single-source records queued instead of guessed'
           : 'Hindi log handling drifted from documented behaviour',
       };
     },
@@ -256,14 +342,16 @@ export const fixtures: Fixture[] = [
     check: (run) => {
       const mismatch = run.exceptions.find((e) => e.rule === 'amount-mismatch');
       const matched = count(run, 'matched');
+      const gst = run.transactions.find((t) => t.reference === 'REF701');
+      const pass = matched === 0 && !!mismatch && gst?.evidence.gstRate === 18;
       return {
-        pass: matched === 0 && !!mismatch,
+        pass,
         actual: mismatch
-          ? `${matched} matched, escalated: ${mismatch.title}`
+          ? `${matched} matched, gstRate=${gst?.evidence.gstRate ?? 'none'}, escalated: ${mismatch.title}`
           : `${matched} matched, no amount-mismatch exception`,
-        reason: mismatch
-          ? 'reference link kept, amount disagreement surfaced as high severity'
-          : 'amount difference on a shared reference was not escalated',
+        reason: pass
+          ? '18% GST-shaped gap named and held as high severity'
+          : 'amount difference on a shared reference was not classified as a GST-shaped hold',
       };
     },
   },

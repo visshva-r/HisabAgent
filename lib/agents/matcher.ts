@@ -1,17 +1,58 @@
-import { ReconciliationPolicy, Transaction } from '../types';
-import { sameAmount, sharesToken } from './normalize';
+import { EMPTY_EVIDENCE, EvidenceSignal, MatchEvidence, ReconciliationPolicy, Transaction } from '../types';
+import { dayGap, gstInclusiveRate, money, nameSimilarity, sameAmount, sharesToken } from './normalize';
 
 const isGeneratedReference = (reference: string) => /^(CSV|NOTE)-\d+$/.test(reference);
 
 export const MISMATCH_FLAG = 'Same reference, different amount';
 
+function sourceLabel(source: Transaction['source']) {
+  return source === 'upi' ? 'UPI export' : 'payment note';
+}
+
+function describeDate(gap: number | null): string {
+  if (gap === null) return 'date unparsed';
+  if (gap === 0) return 'same day';
+  if (gap === 1) return '1 day apart';
+  return `${gap} days apart`;
+}
+
+function evidenceOf(transaction: Transaction, counterpart: Transaction, extra: Partial<MatchEvidence> = {}): MatchEvidence {
+  const sharedReference =
+    extra.sharedReference ??
+    (transaction.reference === counterpart.reference && !isGeneratedReference(transaction.reference));
+  const amountDelta = Math.round(Math.abs(transaction.amount - counterpart.amount) * 100) / 100;
+  const partySimilarity = Math.round(nameSimilarity(transaction.party, counterpart.party) * 100) / 100;
+  const dateGapDays = extra.dateGapDays ?? dayGap(transaction.date, counterpart.date);
+  // GST-shaped gaps are only claimed when a shared reference already ties the
+  // two records. A coincidental 5% near-amount must not be labelled as tax.
+  const gstRate =
+    extra.gstRate !== undefined
+      ? extra.gstRate
+      : sharedReference
+        ? gstInclusiveRate(transaction.amount, counterpart.amount)
+        : null;
+  const signals: EvidenceSignal[] = extra.signals ?? [
+    ...(sharedReference ? (['reference'] as const) : []),
+    ...(amountDelta < 0.01 ? (['amount'] as const) : []),
+    ...(partySimilarity >= 0.5 ? (['party'] as const) : []),
+    ...(dateGapDays !== null && dateGapDays <= 2 ? (['date'] as const) : []),
+    ...(gstRate ? (['gst'] as const) : []),
+  ];
+  return { sharedReference, amountDelta, partySimilarity, dateGapDays, signals, gstRate };
+}
+
 /**
- * Matcher agent: links records across sources using reference, amount and
- * party evidence. It never upgrades a link it cannot justify — weak signals are
- * routed to `partial` so the critic and the owner can see them.
+ * Matcher agent: links records across sources using reference, amount, party
+ * and date evidence. Reasons name the signals used. Weak or conflicting
+ * signals are never promoted to a clean match.
  */
 export function match(transactions: Transaction[], policy: ReconciliationPolicy): Transaction[] {
-  const ledger = transactions.map((transaction) => ({ ...transaction, flags: [...transaction.flags], linkedIds: [] as string[] }));
+  const ledger = transactions.map((transaction) => ({
+    ...transaction,
+    flags: [...transaction.flags],
+    linkedIds: [] as string[],
+    evidence: { ...EMPTY_EVIDENCE, ...transaction.evidence, signals: [...(transaction.evidence?.signals ?? [])] },
+  }));
 
   ledger.forEach((transaction, index) => {
     const peers = ledger.filter(
@@ -25,17 +66,18 @@ export function match(transactions: Transaction[], policy: ReconciliationPolicy)
 
     if (crossSource) {
       const sharedReference = transaction.reference === crossSource.reference && !isGeneratedReference(transaction.reference);
+      const evidence = evidenceOf(transaction, crossSource, { sharedReference });
       transaction.status = 'matched';
       transaction.confidence = sharedReference ? 96 : 82;
       transaction.linkedIds = [crossSource.id];
+      transaction.evidence = evidence;
+      const namePct = Math.round(evidence.partySimilarity * 100);
       transaction.matchReason = sharedReference
-        ? `Shared reference ${transaction.reference} confirmed by ${crossSource.source === 'upi' ? 'UPI export' : 'payment note'}`
-        : `Cross-checked against ${crossSource.source === 'upi' ? 'UPI export' : 'payment note'}: ${crossSource.party} (amount and name only)`;
+        ? `Shared reference ${transaction.reference} on the ${sourceLabel(crossSource.source)} (${describeDate(evidence.dateGapDays)}, name ${namePct}%)`
+        : `Amount and name only vs ${sourceLabel(crossSource.source)} ${crossSource.party} (${describeDate(evidence.dateGapDays)}, name ${namePct}%; no shared reference)`;
       return;
     }
 
-    // Same reference, different amount: GST, platform fees and part payments
-    // hide here. It is evidence of a link, but never evidence of agreement.
     const referenceConflict = ledger.find(
       (candidate, position) =>
         position !== index &&
@@ -46,12 +88,21 @@ export function match(transactions: Transaction[], policy: ReconciliationPolicy)
     );
 
     if (referenceConflict) {
-      const delta = Math.abs(referenceConflict.amount - transaction.amount);
+      const gstRate = gstInclusiveRate(transaction.amount, referenceConflict.amount);
+      const evidence = evidenceOf(transaction, referenceConflict, {
+        sharedReference: true,
+        gstRate,
+        signals: gstRate ? ['reference', 'gst'] : ['reference'],
+      });
+      const delta = evidence.amountDelta;
       transaction.status = 'review';
       transaction.confidence = 58;
       transaction.linkedIds = [referenceConflict.id];
-      transaction.flags.push(MISMATCH_FLAG);
-      transaction.matchReason = `Reference ${transaction.reference} also appears in the ${referenceConflict.source === 'upi' ? 'UPI export' : 'payment notes'} with a different amount (difference ₹${delta.toLocaleString('en-IN')})`;
+      transaction.evidence = evidence;
+      if (!transaction.flags.includes(MISMATCH_FLAG)) transaction.flags.push(MISMATCH_FLAG);
+      transaction.matchReason = gstRate
+        ? `Same reference ${transaction.reference} with a ${gstRate}% GST-shaped gap (${money(transaction.amount)} vs ${money(referenceConflict.amount)})`
+        : `Same reference ${transaction.reference} on the ${sourceLabel(referenceConflict.source)} with a different amount (difference ${money(delta)})`;
       return;
     }
 
@@ -65,10 +116,12 @@ export function match(transactions: Transaction[], policy: ReconciliationPolicy)
     );
 
     if (nearAmount) {
+      const evidence = evidenceOf(transaction, nearAmount, { sharedReference: false, gstRate: null });
       transaction.status = 'partial';
       transaction.confidence = 62;
       transaction.linkedIds = [nearAmount.id];
-      transaction.matchReason = `Near amount signal with ${nearAmount.party}; human confirmation needed`;
+      transaction.evidence = evidence;
+      transaction.matchReason = `Near amount vs ${nearAmount.party} on the ${sourceLabel(nearAmount.source)} (delta ${money(evidence.amountDelta)}, ${describeDate(evidence.dateGapDays)}); needs confirmation`;
     }
   });
 

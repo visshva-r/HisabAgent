@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: dark;
-  --font-sans-stack: var(--font-sans), 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --font-sans-stack: var(--font-sans), 'IBM Plex Sans', 'Nirmala UI', 'Noto Sans Devanagari', 'Segoe UI', sans-serif;
   --font-mono-stack: var(--font-mono), 'IBM Plex Mono', ui-monospace, Consolas, monospace;
 }
 * { box-sizing: border-box; }

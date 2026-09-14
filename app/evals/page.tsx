@@ -28,9 +28,10 @@ export default function Evals() {
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-mint">Measured behaviour</p>
         <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Evals Lab</h1>
         <p className="mt-4 max-w-3xl leading-relaxed text-slate-400">
-          Twelve fixtures run in your browser against the same deterministic engine the workspace uses: eight golden
-          scenarios and four adversarial ones built to make the agent overreach. Two fixtures are documented limitations
-          and are expected to fail. They stay in the suite so the gap cannot be quietly lost.
+          Sixteen fixtures run in your browser against the same deterministic engine the workspace uses: twelve golden
+          scenarios and four adversarial ones built to make the agent overreach. One fixture is a documented limitation
+          (high confidence without a reference) and is expected to fail. It stays in the suite so the gap cannot be
+          quietly lost.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-4">

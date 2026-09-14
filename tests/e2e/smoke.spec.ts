@@ -15,7 +15,7 @@ test('workspace demo path', async ({ page }) => {
 
 test('evals lab reports honest results', async ({ page }) => {
   await page.goto('/evals');
-  await page.getByRole('button', { name: 'Run all 12 evals' }).click();
+  await page.getByRole('button', { name: 'Run all 16 evals' }).click();
   await expect(page.getByText('no regressions against documented behaviour')).toBeVisible();
   await expect(page.getByText('documented limitation').first()).toBeVisible();
 });

@@ -13,13 +13,13 @@ Indian kiranas and MSMEs reconcile UPI exports, cash records and payment message
 
 `Planner → Ingestor → Matcher → Critic → Explainer`
 
-Each stage is its own typed module under `lib/agents/`, wired sequentially by `reconcile()` in `lib/reconciliation.ts`. Every stage is timed for real on each run (no artificial delays), and those timings ship in the audit pack.
+This is a **sequential pipeline**, not an autonomous swarm. Each stage is its own typed module under `lib/agents/`, wired in order by `reconcile()` in `lib/reconciliation.ts`. No stage spawns peers, votes, or retries on its own. Every stage is timed for real on each run (no artificial delays), and those timings ship in the audit pack.
 
 | Module | Responsibility |
 | --- | --- |
 | `lib/agents/planner.ts` | Profiles the evidence and fixes the reconciliation policy (amount tolerance, date window, name-similarity threshold) *before* any record is touched. Without a reference column it tightens the amount window instead of guessing. |
-| `lib/agents/ingestor.ts` | Parses comma, semicolon and tab exports plus informal notes into one canonical ledger. Amounts prefer a currency marker, dates are normalized to ISO, and undated notes inherit the ledger's working day. |
-| `lib/agents/matcher.ts` | Links records across sources. Shared reference → 96; name and amount only → 82; near amount → `partial`. A shared reference with disagreeing amounts is escalated, never matched. |
+| `lib/agents/ingestor.ts` | Parses comma, semicolon and tab exports plus informal notes into one canonical ledger. Amounts prefer a currency marker, dates are normalized to ISO, Devanagari names are kept, and undated notes inherit the ledger's working day. |
+| `lib/agents/matcher.ts` | Links records across sources and records structured evidence (shared reference, amount delta, party similarity, date gap, GST rate). Shared reference → 96; name and amount only → 82; near amount → `partial`. A shared reference with disagreeing amounts is escalated, never matched. GST-shaped gaps (5/12/18/28%) are labelled only when a reference already ties the pair. |
 | `lib/agents/critic.ts` | Attacks the matcher's output and computes Output Trust. Rules can only make the ledger more cautious. |
 | `lib/agents/explainer.ts` | States the same numbers in English and Hindi, including what is still open. |
 
@@ -30,7 +30,8 @@ More detail: [`docs/architecture.md`](docs/architecture.md)
 - Same payment entered twice in one source (identical reference or identical normalized name).
 - Fuzzy party duplicates: the same amount under two spellings of one name, via suffix-stripped edit distance.
 - Repeat-amount / date outliers: identical amounts more than 7 days apart, reported as a recurring payment or a stale copy rather than a duplicate.
-- Amount mismatch on a shared reference: the GST, platform-fee and short-payment case, raised as high severity.
+- Amount mismatch on a shared reference: the GST, platform-fee and short-payment case, raised as high severity. When the gap matches a standard Indian GST-inclusive rate, that rate is named.
+- Split payments: two notes that add up to one open UPI amount for the same counterparty are held as a split, not matched.
 - Ambiguous matches: when two distinct counterparties carry the same amount, every record in the ambiguity loses its matched status.
 - Suspiciously round open amounts (₹5,000+ multiples of 1,000 with no confirmed counterpart).
 - Amount-only links, pulled back on a second pass.
@@ -53,9 +54,9 @@ Bands: **80+ High**, **55-79 Moderate**, **below 55 Low**, each with a plain-lan
 
 ## Reliability / Evals
 
-`lib/evals.ts` holds twelve fixtures shared by the Evals Lab page, `npm test` and `npm run eval`:
+`lib/evals.ts` holds sixteen fixtures shared by the Evals Lab page, `npm test` and `npm run eval`:
 
-- **8 golden:** clean UPI CSV, messy headers with a duplicate row, notes only, mixed sources, duplicate claim, near-amount payment, plus two **documented limitations** that are expected to fail (no high confidence without a reference; Devanagari counterparty names are not tokenised).
+- **12 golden:** clean UPI CSV, messy headers with a duplicate row, notes only, mixed sources, duplicate claim, near-amount payment, Hindi counterparty names, fuzzy spellings, date outliers, round amounts, split payments, plus one **documented limitation** that is expected to fail (no high confidence without a reference).
 - **4 adversarial:** over-matching bait (two same-amount customers), a corrupt export, an all-Hindi day log, and a GST/rounding mismatch.
 
 Each fixture declares the behaviour it expects today, so a change in either direction (a fixture breaking, or a documented limitation quietly starting to pass) is reported as a regression. There is no fake latency and no random jitter anywhere in the suite.
@@ -77,7 +78,7 @@ Open `http://localhost:3000`. No login, no API key, no environment variables. Th
 
 ### Demo path
 
-Open `/workspace` → the Sharma General Store sample is already loaded (a duplicate ₹2,500 credit is hidden in it) → **Run HisabAgent** → the duplicate lands in the decision queue with a copyable Hinglish WhatsApp reminder → **Run critic again** to watch trust fall as amount-only links are pulled back → expand the audit preview or download the ZIP → `/evals` for the twelve fixtures.
+Open `/workspace` → the Sharma General Store sample is auto-loaded and already reconciled (a duplicate ₹2,500 credit is held in the queue) → the decision queue offers a copyable Hinglish WhatsApp reminder → **Run critic again** to watch trust fall as amount-only links are pulled back → expand the audit preview or download the ZIP → `/evals` for the sixteen fixtures.
 
 Runs are stored in this browser only: the last five in `hisabagent:runs` (with the newest also under `hisabagent:last-run`), reloadable from the **Recent runs** panel.
 
@@ -98,7 +99,7 @@ HisabAgent does not generate invoices or put a chatbot in front of a ledger. Its
 
 ## Limitations
 
-The parser is rule-based and built for realistic demo CSV and plain text, not bank-grade accounting. It does not replace a CA review, live bank APIs, OCR verification or statutory tax compliance. Devanagari counterparty names are not yet tokenised (fixture `hindi-only` keeps that gap visible). Ambiguous names, dates and split payments stay in the human queue by design.
+The parser is rule-based and built for realistic demo CSV and plain text, not bank-grade accounting. It does not replace a CA review, live bank APIs, OCR verification or statutory tax compliance. High confidence still requires a shared reference (fixture `missing-ref` keeps that gap visible). Ambiguous names, GST-shaped amount gaps and split payments stay in the human queue by design.
 
 ## Deploy to Vercel
 
@@ -111,7 +112,7 @@ The parser is rule-based and built for realistic demo CSV and plain text, not ba
 
 - `lib/agents/`: planner, ingestor, matcher, critic, explainer and shared normalization
 - `lib/reconciliation.ts`: sequential pipeline, per-agent timing, second critic pass
-- `lib/evals.ts`: the twelve fixtures shared by the UI, the tests and the CLI
+- `lib/evals.ts`: the sixteen fixtures shared by the UI, the tests and the CLI
 - `lib/audit.ts`: audit pack builder used by both the in-page preview and the ZIP
 - `components/workspace.tsx`: intake, agent trace, ledger, trust meter, audit preview, run history
 - `app/evals`: fixture dashboard with Output Trust and documented limitations

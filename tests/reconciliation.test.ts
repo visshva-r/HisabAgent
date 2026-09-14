@@ -3,7 +3,7 @@ import { plan } from '../lib/agents/planner';
 import { parseCsv, parseNotes, ingest } from '../lib/agents/ingestor';
 import { match } from '../lib/agents/matcher';
 import { critique } from '../lib/agents/critic';
-import { isDateOnly, nameSimilarity, parseAmount, parseDate } from '../lib/agents/normalize';
+import { isDateOnly, nameSimilarity, parseAmount, parseDate, extractParty, gstInclusiveRate } from '../lib/agents/normalize';
 import { reconcile, runCriticAgain } from '../lib/reconciliation';
 import { buildAuditFiles } from '../lib/audit';
 import { fixtures, runAllFixtures, summarize } from '../lib/evals';
@@ -27,6 +27,16 @@ describe('normalization primitives', () => {
   it('treats shop suffixes as noise when comparing counterparties', () => {
     expect(nameSimilarity('ANITA', 'Anita Stores')).toBeGreaterThan(0.85);
     expect(nameSimilarity('Anita Devi', 'Anita Kumari')).toBeLessThan(0.82);
+  });
+  it('keeps Devanagari counterparty names instead of stripping them', () => {
+    expect(extractParty('रमेश से ₹450 मिले', ['paid', 'received', 'from', 'today', 'upi', 'ref'])).toContain('रमेश');
+    expect(extractParty('मोहन डेयरी को ₹1,200 दिया', ['paid', 'received', 'from', 'today', 'upi', 'ref'])).toContain('मोहन');
+  });
+  it('recognises a standard GST-inclusive gap without matching it', () => {
+    expect(gstInclusiveRate(1000, 1180)).toBe(18);
+    expect(gstInclusiveRate(1000, 1050)).toBe(5);
+    expect(gstInclusiveRate(1000, 1000)).toBeNull();
+    expect(gstInclusiveRate(1000, 1073)).toBeNull();
   });
 });
 
@@ -54,9 +64,10 @@ describe('ingestor agent', () => {
     expect(parseCsv('Date;Amount;Type\n2026-08-03;1500;Credit')).toHaveLength(1);
     expect(parseCsv('Date;Amount;Type\n%%%%\n2026-08-03;abc;Credit')).toHaveLength(0);
   });
-  it('extracts amounts and debit intent from Hindi-English notes', () => {
+  it('extracts amounts, debit intent and Hindi party names from notes', () => {
     const rows = parseNotes('मोहन डेयरी को ₹1,200 दिया, ref UTR-993');
     expect(rows[0]).toMatchObject({ amount: 1200, direction: 'debit', reference: 'UTR-993' });
+    expect(rows[0].party).toContain('मोहन');
   });
   it('attributes undated notes to the working day of the export', () => {
     const ledger = ingest('Date,Amount,Type,Name,Ref\n2026-08-01,100,Credit,A,R1', 'B paid ₹200');
@@ -84,6 +95,28 @@ describe('matcher agent', () => {
     );
     expect(ledger.every((row) => row.status === 'review')).toBe(true);
     expect(ledger[0].flags).toContain('Same reference, different amount');
+    expect(ledger.find((row) => row.reference === 'REF701')?.evidence.gstRate).toBe(18);
+    expect(ledger[0].matchReason).toMatch(/18% GST/);
+    expect(ledger[0].evidence.signals).toContain('gst');
+  });
+  it('does not label a coincidental 5% near-amount as GST', () => {
+    const ledger = match(
+      ingest('Date,Amount,Type,Name,Ref\n2026-08-01,1000,Credit,Ravi,REF2', 'Ravi payment ₹1,050 received'),
+      policy,
+    );
+    expect(ledger.some((row) => row.status === 'partial')).toBe(true);
+    expect(ledger.every((row) => row.evidence.gstRate === null)).toBe(true);
+    expect(ledger.every((row) => !row.evidence.signals.includes('gst'))).toBe(true);
+  });
+  it('names date gap and party similarity on a clean reference match', () => {
+    const ledger = match(
+      ingest('Date,Amount,Type,Name,Ref\n2026-08-01,2500,Credit,Anita Stores,REF001', 'Anita Stores paid ₹2,500 UPI ref REF001'),
+      policy,
+    );
+    const upi = ledger.find((row) => row.source === 'upi')!;
+    expect(upi.evidence.sharedReference).toBe(true);
+    expect(upi.evidence.signals).toEqual(expect.arrayContaining(['reference', 'amount', 'party']));
+    expect(upi.matchReason).toMatch(/same day|name \d+%/);
   });
 });
 
@@ -120,6 +153,12 @@ describe('critic agent', () => {
     );
     expect(result.transactions.some((t) => t.status === 'matched')).toBe(false);
     expect(result.exceptions.some((e) => /Ambiguous match/.test(e.title))).toBe(true);
+  });
+  it('holds two notes that sum to one UPI amount as a split payment', () => {
+    const result = run('Date,Amount,Type,Name,Ref\n2026-08-01,1500,Credit,Ravi Kumar,REF10', 'Ravi paid ₹800\nRavi paid ₹700');
+    expect(result.exceptions.some((e) => e.rule === 'split-payment')).toBe(true);
+    expect(result.transactions.some((t) => t.status === 'matched')).toBe(false);
+    expect(result.transactions.every((t) => t.status === 'review')).toBe(true);
   });
 });
 
@@ -206,14 +245,14 @@ describe('pipeline output', () => {
 describe('eval suite', () => {
   it('ships four adversarial fixtures alongside the golden set', () => {
     expect(fixtures.filter((fixture) => fixture.group === 'adversarial')).toHaveLength(4);
-    expect(fixtures.filter((fixture) => fixture.outcome === 'known-limitation')).toHaveLength(2);
+    expect(fixtures.filter((fixture) => fixture.outcome === 'known-limitation')).toHaveLength(1);
   });
   it('matches documented behaviour on every fixture', () => {
     const rows = runAllFixtures();
     const stats = summarize(rows);
     expect(stats.regressions).toEqual([]);
-    expect(stats.total).toBe(12);
-    expect(stats.passing).toBe(10);
+    expect(stats.total).toBe(16);
+    expect(stats.passing).toBe(15);
   });
   it('reports honest per-fixture trust instead of a constant', () => {
     const scores = new Set(runAllFixtures().map((row) => row.trust));

@@ -46,10 +46,20 @@ export function parseDate(text: string, fallback: string): string {
 
 export function tokens(text: string): string[] {
   return text
-    .replace(/[^a-zA-Z\s]/g, ' ')
+    .replace(/[^a-zA-Z\u0900-\u097F\s]/g, ' ')
     .trim()
     .split(/\s+/)
     .filter((word) => word.length > 2);
+}
+
+const HINDI_STOP = /^(से|को|ने|का|की|के|में|और|मिले|मिला|आए|आया|दिया|भेजा|भेजे|आज|कल|नगद)$/;
+
+export function extractParty(line: string, stopWords: string[]): string {
+  const named = tokens(line)
+    .filter((word) => !stopWords.includes(word.toLowerCase()) && !HINDI_STOP.test(word))
+    .slice(0, 3)
+    .join(' ');
+  return named || 'WhatsApp note';
 }
 
 /** Excel exports from Indian banks arrive comma, semicolon or tab separated. */
@@ -96,7 +106,7 @@ export function sharesToken(a: string, b: string): boolean {
 export function normalizeName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[^a-z\s]/g, ' ')
+    .replace(/[^a-z\u0900-\u097F\s]/g, ' ')
     .replace(NAME_NOISE, ' ')
     .replace(/\s+/g, '')
     .trim();
@@ -156,6 +166,21 @@ export function sameAmount(a: number, b: number): boolean {
 
 export function isRoundAmount(amount: number, floor: number): boolean {
   return amount >= floor && amount % 1000 === 0;
+}
+
+/**
+ * If two amounts differ by a standard Indian GST inclusive rate (5/12/18/28%),
+ * return that rate. Used to explain amount mismatches instead of matching them.
+ */
+export function gstInclusiveRate(a: number, b: number): number | null {
+  const high = Math.max(a, b);
+  const low = Math.min(a, b);
+  if (low <= 0) return null;
+  const observed = (high - low) / low;
+  for (const rate of [5, 12, 18, 28]) {
+    if (Math.abs(observed - rate / 100) <= 0.012) return rate;
+  }
+  return null;
 }
 
 export const money = (amount: number): string => `₹${amount.toLocaleString('en-IN')}`;

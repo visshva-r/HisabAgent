@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { reconcile, runCriticAgain } from '@/lib/reconciliation';
 import { buildAuditFiles } from '@/lib/audit';
-import { Exception, RunResult, Status, TrustReason } from '@/lib/types';
+import { EMPTY_EVIDENCE, EvidenceSignal, Exception, MatchEvidence, RunResult, Status, TrustReason } from '@/lib/types';
 
 const sampleCsv = `Date,Transaction ID,Payer Name,Amount,Type,UPI Ref
 2026-08-01,TXN891,Anita Stores,2500,Credit,427910018821
@@ -50,10 +50,19 @@ type HistoryEntry = { csv: string; notes: string; run: RunResult };
 const money = (value: number) => `₹${value.toLocaleString('en-IN')}`;
 
 const STATUS_STYLE: Record<Status, { label: string; className: string }> = {
-  matched: { label: 'Matched', className: 'text-mint' },
-  partial: { label: 'Partial', className: 'text-sky' },
-  review: { label: 'Review', className: 'text-amber' },
-  unmatched: { label: 'Unmatched', className: 'text-danger' },
+  matched: { label: 'Matched', className: 'border-mint/35 bg-mint/15 text-mint' },
+  partial: { label: 'Partial', className: 'border-sky/35 bg-sky/15 text-sky' },
+  review: { label: 'Review', className: 'border-amber/40 bg-amber/15 text-amber' },
+  unmatched: { label: 'Unmatched', className: 'border-danger/35 bg-danger/15 text-danger' },
+};
+
+const SIGNAL_LABEL: Record<EvidenceSignal, string> = {
+  reference: 'Ref',
+  amount: 'Amount',
+  party: 'Name',
+  date: 'Date',
+  gst: 'GST',
+  split: 'Split',
 };
 
 const BAND_STYLE = {
@@ -84,24 +93,6 @@ export function Workspace() {
   const [llmSummary, setLlmSummary] = useState<{ en: string; hi: string } | null>(null);
   const [llmState, setLlmState] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
 
-  useEffect(() => {
-    const stored = readHistory();
-    setHistory(stored);
-    // First visit gets the sample day pre-loaded; a returning owner gets their
-    // own last inputs back instead.
-    if (!stored.length) {
-      setSampleNote(true);
-      return;
-    }
-    const [latest] = stored;
-    setCsv(latest.csv);
-    setNotes(latest.notes);
-    setShop(latest.run.shopName);
-    setLang(latest.run.language);
-  }, []);
-
-  const inputsEmpty = !csv.trim() && !notes.trim();
-
   const persist = useCallback((entry: HistoryEntry) => {
     try {
       const next = [entry, ...readHistory().filter((item) => item.run.id !== entry.run.id)].slice(0, HISTORY_LIMIT);
@@ -113,13 +104,38 @@ export function Workspace() {
     }
   }, []);
 
+  useEffect(() => {
+    const stored = readHistory();
+    setHistory(stored);
+    if (!stored.length) {
+      setSampleNote(true);
+      const result = reconcile(sampleCsv, sampleNotes, 'Sharma General Store', 'both');
+      setRun(result);
+      persist({ csv: sampleCsv, notes: sampleNotes, run: result });
+      return;
+    }
+    const [latest] = stored;
+    setCsv(latest.csv);
+    setNotes(latest.notes);
+    setShop(latest.run.shopName);
+    setLang(latest.run.language);
+    setRun(latest.run);
+    if (latest.csv === sampleCsv && latest.notes === sampleNotes) setSampleNote(true);
+  }, [persist]);
+
+  const inputsEmpty = !csv.trim() && !notes.trim();
+
   function loadDemo() {
     setCsv(sampleCsv);
     setNotes(sampleNotes);
     setShop('Sharma General Store');
+    setLang('both');
     setError('');
-    setRun(null);
     resetLlm();
+    setSampleNote(true);
+    const result = reconcile(sampleCsv, sampleNotes, 'Sharma General Store', 'both');
+    setRun(result);
+    persist({ csv: sampleCsv, notes: sampleNotes, run: result });
   }
 
   function resetLlm() {
@@ -259,8 +275,8 @@ export function Workspace() {
               <div className="mt-3 flex items-start gap-2 rounded-lg border border-sky/25 bg-sky/10 px-3 py-2 text-xs text-sky">
                 <Info size={14} className="mt-0.5 shrink-0" />
                 <p className="flex-1">
-                  Sample data loaded: one messy kirana day, including a duplicate ₹2,500 credit. Replace it with your own
-                  export any time.
+                  Sample day is already reconciled: Sharma General Store, including a duplicate ₹2,500 credit held in
+                  the queue. Replace the export with your own any time and run again.
                 </p>
                 <button onClick={() => setSampleNote(false)} aria-label="Dismiss sample data note" className="shrink-0">
                   <X size={14} />
@@ -532,8 +548,21 @@ function DayHealth({
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Day health</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-3">
-            <span className="tabular text-3xl font-bold text-mint">{run.trust.score}</span>
-            <span className={`text-sm font-semibold ${BAND_STYLE[run.trust.band]}`}>{run.trust.band} Output Trust</span>
+            <span className="tabular text-3xl font-bold text-mint" title="Output Trust for this run, 0-100">
+              {run.trust.score}
+            </span>
+            <span
+              className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                run.trust.band === 'High'
+                  ? 'border-mint/35 bg-mint/10 text-mint'
+                  : run.trust.band === 'Moderate'
+                    ? 'border-amber/40 bg-amber/10 text-amber'
+                    : 'border-danger/35 bg-danger/10 text-danger'
+              }`}
+              title="High 80+, Moderate 55-79, Low below 55. A property of this output, not of the software."
+            >
+              {run.trust.band} Output Trust
+            </span>
           </div>
           <p className="mt-1 max-w-xl text-sm text-slate-400">{run.trust.guidance}</p>
         </div>
@@ -568,22 +597,55 @@ function ReasonIcon({ kind }: { kind: TrustReason['kind'] }) {
 function Trust({ run }: { run: RunResult }) {
   const { trust } = run;
   const breakdown = trust.breakdown;
+  const barClass =
+    trust.band === 'High' ? 'bg-mint/80' : trust.band === 'Moderate' ? 'bg-amber/80' : 'bg-danger/80';
   return (
     <div className="panel rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold">Output Trust</h2>
+          <h2 className="inline-flex items-center gap-1.5 font-semibold">
+            Output Trust
+            <span
+              className="inline-flex text-slate-500"
+              title="A score of this run's evidence, not a confidence claim about the software. Same inputs always produce the same number. High 80+, Moderate 55–79, Low below 55."
+            >
+              <Info size={14} aria-label="Output Trust is a score of this run, not of the software" />
+            </span>
+          </h2>
           <p className="mt-1 text-xs text-slate-400">How much of this output stands on independent evidence.</p>
         </div>
-        <span className="tabular text-3xl font-bold text-mint">{trust.score}</span>
+        <span className="tabular text-3xl font-bold text-mint" title={`${trust.band} band · ${trust.score}/100`}>
+          {trust.score}
+        </span>
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded bg-white/10">
-        <div className="h-full bg-mint/80" style={{ width: `${trust.score}%` }} />
+      <div className="relative mt-3 h-1.5 overflow-hidden rounded bg-white/10">
+        <div className={`h-full ${barClass}`} style={{ width: `${trust.score}%` }} />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+        <span>0</span>
+        <span className={trust.band === 'Low' ? 'text-danger' : undefined}>Low &lt;55</span>
+        <span className={trust.band === 'Moderate' ? 'text-amber' : undefined}>55 Moderate</span>
+        <span className={trust.band === 'High' ? 'text-mint' : undefined}>80 High</span>
+        <span>100</span>
       </div>
       <div className="mt-3 text-xs">
-        <span className={`font-semibold ${BAND_STYLE[trust.band]}`}>{trust.band}</span>
-        <span className="mt-1 block leading-relaxed text-slate-400">{trust.guidance}</span>
+        <span
+          className={`rounded-full border px-2 py-0.5 font-semibold ${
+            trust.band === 'High'
+              ? 'border-mint/35 bg-mint/10 text-mint'
+              : trust.band === 'Moderate'
+                ? 'border-amber/40 bg-amber/10 text-amber'
+                : 'border-danger/35 bg-danger/10 text-danger'
+          }`}
+        >
+          {trust.band}
+        </span>
+        <span className="mt-2 block leading-relaxed text-slate-400">{trust.guidance}</span>
       </div>
+      <p className="mono mt-3 text-[11px] leading-relaxed text-slate-500" title="Live Output Trust arithmetic for this run">
+        {breakdown.base} + {breakdown.matchPoints} − {breakdown.highSeverityPenalty} − {breakdown.criticPenalty} →{' '}
+        <b className="text-mint">{trust.score}</b>
+      </p>
       <ul className="mt-4 space-y-2 text-xs leading-relaxed text-slate-300">
         {trust.reasons.map((reason) => (
           <li key={reason.text} className="flex gap-2">
@@ -616,9 +678,42 @@ function Trust({ run }: { run: RunResult }) {
   );
 }
 
-function StatusBadge({ status }: { status: Status }) {
+function StatusBadge({ status, warned }: { status: Status; warned?: boolean }) {
   const style = STATUS_STYLE[status];
-  return <span className={`text-[11px] font-semibold ${style.className}`}>{style.label}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${style.className}`}>
+      {warned && <AlertTriangle size={10} aria-hidden />}
+      {style.label}
+    </span>
+  );
+}
+
+function EvidenceChips({ evidence }: { evidence?: MatchEvidence }) {
+  const value = evidence ?? EMPTY_EVIDENCE;
+  if (!value.signals.length && !value.gstRate) return null;
+  return (
+    <span className="mt-1.5 flex flex-wrap gap-1">
+      {value.signals.map((signal) => (
+        <span
+          key={signal}
+          title={
+            signal === 'gst' && value.gstRate
+              ? `${value.gstRate}% GST-shaped amount gap`
+              : signal === 'split'
+                ? 'Two notes add up to this UPI amount'
+                : `${SIGNAL_LABEL[signal]} signal used`
+          }
+          className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+            signal === 'gst' || signal === 'split'
+              ? 'border-amber/30 bg-amber/10 text-amber'
+              : 'border-white/10 bg-white/5 text-slate-400'
+          }`}
+        >
+          {signal === 'gst' && value.gstRate ? `GST ${value.gstRate}%` : SIGNAL_LABEL[signal]}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function Transactions({ run }: { run: RunResult }) {
@@ -634,11 +729,11 @@ function Transactions({ run }: { run: RunResult }) {
             <thead className="border-y border-white/10 bg-black/15 text-[11px] uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="p-3 font-medium">Date</th>
-                <th className="font-medium">Party / reference</th>
-                <th className="font-medium">Amount</th>
-                <th className="font-medium">Source</th>
-                <th className="font-medium">Status</th>
-                <th className="font-medium">Confidence</th>
+                <th className="p-3 font-medium">Party / reference</th>
+                <th className="p-3 font-medium">Amount</th>
+                <th className="p-3 font-medium">Source</th>
+                <th className="p-3 font-medium">Status</th>
+                <th className="p-3 font-medium">Confidence</th>
                 <th className="p-3 font-medium">Evidence</th>
               </tr>
             </thead>
@@ -646,18 +741,19 @@ function Transactions({ run }: { run: RunResult }) {
               {run.transactions.map((transaction) => (
                 <tr key={transaction.id} className="border-b border-white/5 align-top">
                   <td className="mono p-3 text-slate-400">{transaction.date}</td>
-                  <td className="py-3">
+                  <td className="p-3">
                     <b className="font-semibold">{transaction.party}</b>
                     <p className="mono text-[10px] text-slate-500">{transaction.reference}</p>
                   </td>
-                  <td className="tabular py-3">{money(transaction.amount)}</td>
-                  <td className="py-3 text-slate-400">{transaction.source === 'upi' ? 'UPI' : 'Note'}</td>
-                  <td className="py-3">
-                    <StatusBadge status={transaction.status} />
+                  <td className="tabular p-3">{money(transaction.amount)}</td>
+                  <td className="p-3 text-slate-400">{transaction.source === 'upi' ? 'UPI' : 'Note'}</td>
+                  <td className="p-3">
+                    <StatusBadge status={transaction.status} warned={transaction.flags.length > 0} />
                   </td>
-                  <td className="tabular py-3">{transaction.confidence}%</td>
-                  <td className="max-w-[260px] p-3 text-[11px] leading-relaxed text-slate-400">
+                  <td className="tabular p-3">{transaction.confidence}%</td>
+                  <td className="max-w-[280px] p-3 text-[11px] leading-relaxed text-slate-400">
                     {transaction.matchReason}
+                    <EvidenceChips evidence={transaction.evidence} />
                     {transaction.flags.length > 0 && (
                       <span className="mt-1 flex items-start gap-1 text-amber">
                         <AlertTriangle size={12} className="mt-0.5 shrink-0" />
@@ -746,6 +842,10 @@ export function reminder(exception: Exception, shop: string, lang: string) {
       en: `Namaste! ${shop} se. ${amount} ka payment aaya hai par kiska hai ye confirm nahi ho raha. UPI reference ya naam bhej dijiye to sahi jagah chadha deta hoon.`,
       hi: `नमस्ते! ${shop} से। ${amount} का पेमेंट आया है पर किसका है ये कन्फर्म नहीं हो रहा। UPI रेफरेंस या नाम भेज दीजिए तो मैं सही जगह चढ़ा देता हूँ।`,
     },
+    'split-payment': {
+      en: `Namaste! ${shop} se. ${amount} ka payment do hisso me dikh raha hai. Kya aapne do baar bheja tha, ya ek hi payment do notes me likh gaya? Confirm kar dijiye to main hisaab jod deta hoon.`,
+      hi: `नमस्ते! ${shop} से। ${amount} का पेमेंट दो हिस्सों में दिख रहा है। क्या आपने दो बार भेजा था, या एक ही पेमेंट दो नोट्स में लिखा गया? कन्फर्म कर दीजिए तो मैं हिसाब जोड़ देता हूँ।`,
+    },
   };
   const copy = templates[exception.rule] || templates['low-evidence'];
   if (lang === 'en') return copy.en;
@@ -818,6 +918,9 @@ function Exceptions({ run, lang }: { run: RunResult; lang: string }) {
                   <p className="text-[11px] font-medium">
                     <span className={SEVERITY_COLOR[exception.severity]}>{SEVERITY_LABEL[exception.severity]}</span>
                     <span className="text-slate-500"> · {exception.rule}</span>
+                    {exception.severity === 'high' && (
+                      <AlertTriangle size={11} className="ml-1 inline text-danger" aria-label="High severity" />
+                    )}
                     {state && (
                       <span className="ml-2 text-slate-400">
                         · {state === 'resolved' ? 'resolved' : 'kept open'}

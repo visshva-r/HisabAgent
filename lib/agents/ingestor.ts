@@ -1,5 +1,5 @@
-import { Transaction } from '../types';
-import { csvCells, detectDelimiter, hasDate, isDateOnly, parseAmount, parseDate, today, tokens } from './normalize';
+import { EMPTY_EVIDENCE, Transaction } from '../types';
+import { csvCells, detectDelimiter, extractParty, hasDate, isDateOnly, parseAmount, parseDate, today } from './normalize';
 
 const NOTE_STOP_WORDS = [
   'paid',
@@ -84,6 +84,7 @@ export function parseCsv(text: string, fallbackDate = today()): Transaction[] {
         matchReason: 'Awaiting cross-source reconciliation',
         flags: [],
         linkedIds: [],
+        evidence: { ...EMPTY_EVIDENCE },
       };
     })
     .filter((transaction) => transaction.amount > 0);
@@ -96,11 +97,7 @@ export function parseNotes(text: string, fallbackDate = today()): Transaction[] 
     .map((line, index) => {
       const lower = line.toLowerCase();
       const reference = line.match(/(?:ref|utr|txn|upi)[\s:#-]*([A-Za-z0-9-]{5,})/i)?.[1] || `NOTE-${index + 1}`;
-      const party =
-        tokens(line)
-          .filter((word) => !NOTE_STOP_WORDS.includes(word.toLowerCase()))
-          .slice(0, 3)
-          .join(' ') || 'WhatsApp note';
+      const party = extractParty(line, NOTE_STOP_WORDS);
 
       return {
         id: `note-${index}`,
@@ -115,6 +112,7 @@ export function parseNotes(text: string, fallbackDate = today()): Transaction[] 
         matchReason: 'Parsed from informal payment note',
         flags: [],
         linkedIds: [],
+        evidence: { ...EMPTY_EVIDENCE },
       };
     });
 }

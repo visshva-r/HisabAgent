@@ -26,7 +26,7 @@ export default function Home() {
                 Open workspace <ArrowRight size={17} />
               </Link>
               <Link href="/evals" className="text-sm font-medium text-slate-300 underline-offset-4 hover:text-mint hover:underline">
-                See 12 honest evals
+                See 16 honest evals
               </Link>
             </div>
             <p className="mt-8 text-sm text-slate-500">No login · Hindi + English · Audit pack export</p>
@@ -100,7 +100,8 @@ export default function Home() {
           <div>
             <h2 className="font-semibold">Tested against overreach.</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-400">
-              Twelve fixtures, including adversarial ones and two documented limitations that are expected to fail.
+              Sixteen fixtures, including adversarial over-match, corrupt CSV, Hindi logs, GST rounding, and one
+              documented limitation that is expected to fail.
             </p>
           </div>
         </div>

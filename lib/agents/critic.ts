@@ -1,4 +1,4 @@
-import { Exception, ReconciliationPolicy, Transaction, Trust, TrustBand, TrustReason } from '../types';
+import { EMPTY_EVIDENCE, Exception, ReconciliationPolicy, Transaction, Trust, TrustBand, TrustReason } from '../types';
 import { MISMATCH_FLAG } from './matcher';
 import { dayGap, isRoundAmount, money, nameSimilarity, normalizeName, sameAmount, sharesToken } from './normalize';
 
@@ -25,7 +25,15 @@ function downgrade(transaction: Transaction, flag: string, status: Transaction['
  * never promotes a record to a stronger status.
  */
 export function critique(input: Transaction[], policy: ReconciliationPolicy, pass = 1): CritiqueResult {
-  const transactions = input.map((transaction) => ({ ...transaction, flags: [...transaction.flags] }));
+  const transactions = input.map((transaction) => ({
+    ...transaction,
+    flags: [...transaction.flags],
+    linkedIds: [...transaction.linkedIds],
+    evidence: {
+      ...(transaction.evidence ?? EMPTY_EVIDENCE),
+      signals: [...(transaction.evidence?.signals ?? [])],
+    },
+  }));
   const exceptions: Exception[] = [];
   const add = (exception: Exception) => {
     if (!exceptions.some((existing) => existing.id === exception.id)) exceptions.push(exception);
@@ -155,11 +163,16 @@ export function critique(input: Transaction[], policy: ReconciliationPolicy, pas
     if (!counterpart) return;
     const delta = Math.abs(counterpart.amount - transaction.amount);
     const pair = [transaction.id, counterpart.id].sort();
+    const gstRate = transaction.evidence.gstRate || counterpart.evidence.gstRate;
     add({
       id: `mismatch-${pair.join('_')}`,
       rule: 'amount-mismatch',
-      title: `Same reference, ${money(delta)} difference`,
-      detail: `Reference ${transaction.reference} appears as ${money(transaction.amount)} and ${money(counterpart.amount)}. Tax, platform charges or a short payment can explain it, but the books cannot assume which.`,
+      title: gstRate
+        ? `Same reference, ${gstRate}% GST-shaped ${money(delta)} difference`
+        : `Same reference, ${money(delta)} difference`,
+      detail: gstRate
+        ? `Reference ${transaction.reference} appears as ${money(transaction.amount)} and ${money(counterpart.amount)} — a ${gstRate}% GST-inclusive gap. The books cannot assume tax was applied without the owner saying so.`
+        : `Reference ${transaction.reference} appears as ${money(transaction.amount)} and ${money(counterpart.amount)}. Tax, platform charges or a short payment can explain it, but the books cannot assume which.`,
       severity: 'high',
       suggestedAction: 'Confirm the actual credited amount and record the difference (GST, charges or balance due) explicitly.',
       transactionIds: pair,
@@ -167,6 +180,59 @@ export function critique(input: Transaction[], policy: ReconciliationPolicy, pas
       party: transaction.party,
     });
   });
+
+  // Rule 7 — two informal notes that add up to one open UPI amount for the
+  // same counterparty. That is either a split collection or two genuine
+  // payments; the matcher must not pick. Checked before unmatched so these
+  // records land in review instead of three separate "missing counterpart" rows.
+  const claimed = new Set<string>();
+  const openNotes = () =>
+    transactions.filter((transaction) => transaction.source === 'note' && transaction.status !== 'matched' && !claimed.has(transaction.id));
+  transactions
+    .filter((transaction) => transaction.source === 'upi' && transaction.status !== 'matched')
+    .forEach((upi) => {
+      if (claimed.has(upi.id)) return;
+      const candidates = openNotes().filter(
+        (note) =>
+          note.direction === upi.direction &&
+          (nameSimilarity(note.party, upi.party) >= policy.partySimilarity || sharesToken(note.party, upi.party)),
+      );
+      for (let i = 0; i < candidates.length; i += 1) {
+        for (let j = i + 1; j < candidates.length; j += 1) {
+          const left = candidates[i];
+          const right = candidates[j];
+          if (!sameAmount(left.amount + right.amount, upi.amount)) continue;
+          [upi, left, right].forEach((transaction) => {
+            claimed.add(transaction.id);
+            downgrade(transaction, 'Split payment: notes sum to UPI amount', 'review', 50);
+            const signals = new Set(transaction.evidence.signals);
+            signals.add('split');
+            transaction.evidence = {
+              ...transaction.evidence,
+              amountDelta: 0,
+              partySimilarity: nameSimilarity(left.party, upi.party),
+              signals: Array.from(signals),
+            };
+            transaction.linkedIds = Array.from(new Set([...transaction.linkedIds, upi.id, left.id, right.id])).filter(
+              (id) => id !== transaction.id,
+            );
+            transaction.matchReason = `Split: ${money(left.amount)} + ${money(right.amount)} = ${money(upi.amount)} on ${upi.party}`;
+          });
+          add({
+            id: `split-${upi.id}-${left.id}-${right.id}`,
+            rule: 'split-payment',
+            title: `Split payment totalling ${money(upi.amount)}`,
+            detail: `${money(left.amount)} and ${money(right.amount)} from “${left.party}” / “${right.party}” add up to the unmatched ${money(upi.amount)} UPI record for ${upi.party}. This is either one payment written as two notes or two genuine collections.`,
+            severity: 'medium',
+            suggestedAction: 'Ask whether this was one payment in two parts or two separate collections, then link the matching UPI reference.',
+            transactionIds: [upi.id, left.id, right.id],
+            amount: upi.amount,
+            party: upi.party,
+          });
+          return;
+        }
+      }
+    });
 
   // Rule 6 — second and later passes distrust amount-only links.
   if (pass > 1) {

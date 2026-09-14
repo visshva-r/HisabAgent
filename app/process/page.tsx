@@ -5,8 +5,8 @@ import { ArrowRight } from 'lucide-react';
 const agents = [
   ['01', 'Planner', 'Profiles the evidence and fixes policy before any record is touched.'],
   ['02', 'Ingestor', 'Normalizes CSV (comma / semicolon / tab) and informal payment notes.'],
-  ['03', 'Matcher', 'Links by reference, amount and party. Never upgrades weak evidence.'],
-  ['04', 'Critic', 'Downgrades only: duplicates, fuzzy names, date outliers, GST mismatches.'],
+  ['03', 'Matcher', 'Links by reference, amount, party and date. Writes evidence reasons. Never upgrades weak signals.'],
+  ['04', 'Critic', 'Downgrades only: duplicates, fuzzy names, date outliers, GST mismatches, split payments.'],
   ['05', 'Explainer', 'States the same numbers in English and Hindi, including what is open.'],
 ] as const;
 
@@ -29,8 +29,7 @@ export default function Process() {
           you can inspect.
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-300">
-          HisabAgent is a deterministic multi-agent pipeline for messy Indian MSME payments. Each stage is a typed
-          module, timed for real, and recorded in the downloadable audit pack.
+          HisabAgent is a deterministic sequential pipeline for messy Indian MSME payments — five typed stages, one after another, not an autonomous swarm. Each stage is timed for real and recorded in the downloadable audit pack.
         </p>
 
         <div className="panel mt-10 rounded-2xl p-5 sm:p-7">

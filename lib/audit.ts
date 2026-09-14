@@ -10,9 +10,21 @@ const csvCell = (value: string) => `"${value.replaceAll('"', '""')}"`;
  */
 export function buildAuditFiles(run: RunResult): AuditFile[] {
   const reconciled = [
-    'date,direction,party,amount,reference,status,confidence,flags',
+    'date,direction,party,amount,reference,status,confidence,flags,signals,gst_rate,match_reason',
     ...run.transactions.map((t) =>
-      [t.date, t.direction, csvCell(t.party), t.amount, t.reference, t.status, t.confidence, csvCell(t.flags.join(' | '))].join(','),
+      [
+        t.date,
+        t.direction,
+        csvCell(t.party),
+        t.amount,
+        t.reference,
+        t.status,
+        t.confidence,
+        csvCell(t.flags.join(' | ')),
+        csvCell((t.evidence?.signals ?? []).join('|')),
+        t.evidence?.gstRate ?? '',
+        csvCell(t.matchReason),
+      ].join(','),
     ),
   ].join('\n');
 

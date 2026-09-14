@@ -1,6 +1,25 @@
 export type Status = 'matched' | 'partial' | 'unmatched' | 'review';
 export type Direction = 'credit' | 'debit';
 export type Source = 'upi' | 'note';
+export type EvidenceSignal = 'reference' | 'amount' | 'party' | 'date' | 'gst' | 'split';
+
+export type MatchEvidence = {
+  sharedReference: boolean;
+  amountDelta: number;
+  partySimilarity: number;
+  dateGapDays: number | null;
+  signals: EvidenceSignal[];
+  gstRate: number | null;
+};
+
+export const EMPTY_EVIDENCE: MatchEvidence = {
+  sharedReference: false,
+  amountDelta: 0,
+  partySimilarity: 0,
+  dateGapDays: null,
+  signals: [],
+  gstRate: null,
+};
 
 export type Transaction = {
   id: string;
@@ -15,6 +34,7 @@ export type Transaction = {
   matchReason: string;
   flags: string[];
   linkedIds: string[];
+  evidence: MatchEvidence;
 };
 
 export type ExceptionRule =
@@ -25,7 +45,8 @@ export type ExceptionRule =
   | 'round-amount'
   | 'partial'
   | 'unmatched'
-  | 'low-evidence';
+  | 'low-evidence'
+  | 'split-payment';
 
 export type Exception = {
   id: string;
